@@ -1,0 +1,13 @@
+{
+  "name": "map-tracking-workspace",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Professional Fullstack Real-time MAP TRACKING Application",
+  "scripts": {
+    "start": "npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev -- --host",
+    "build": "cd frontend && npm run build"
+  }
+}
+
