@@ -9,11 +9,11 @@ export default function ActiveTrackersPanel({ selectedUserId, onSelectUser, onOp
 
   return (
     <>
-      {/* Mobile Floating Pill Button (Bottom Right) */}
-      <div className="md:hidden absolute top-20 right-4 z-20">
+      {/* Mobile Floating Pill Button (Top Right, aligned symmetrically with Layer button) */}
+      <div className="md:hidden absolute top-3 right-3 z-20">
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/95 text-emerald-400 border border-emerald-500/40 shadow-xl backdrop-blur-md active:scale-95 text-xs font-bold"
+          className="flex items-center gap-1.5 px-2.5 py-2 rounded-2xl bg-slate-900/95 text-emerald-400 border border-emerald-500/40 shadow-2xl backdrop-blur-md active:scale-95 text-xs font-bold"
         >
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
           <Users className="w-3.5 h-3.5" />

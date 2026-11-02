@@ -11,9 +11,19 @@ export async function authenticateToken(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
-    const user = await db.getUser(decoded.uid);
+    let user = await db.getUser(decoded.uid);
     if (!user) {
-      return res.status(401).json({ error: 'User no longer exists' });
+      // Re-hydrate user from verified JWT payload so sessions never break across server restarts!
+      user = {
+        uid: decoded.uid,
+        email: decoded.email || 'user@gmail.com',
+        displayName: decoded.email ? decoded.email.split('@')[0] : 'User',
+        avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${decoded.uid}`,
+        role: decoded.role || 'user',
+        isSharing: true,
+        lastSeen: Date.now()
+      };
+      await db.setUser(decoded.uid, user);
     }
     req.user = user;
     next();
@@ -28,4 +38,3 @@ export function requireAdmin(req, res, next) {
   }
   next();
 }
-

@@ -106,14 +106,14 @@ function MainApp() {
           t={t}
         />
 
-        {/* Active Group / Duo Banner Indicator (Top Center) */}
+        {/* Active Group / Duo Banner Indicator (Top Center, perfectly centered between layer & tracker buttons) */}
         {currentGroup && (
           <div 
             onClick={() => setIsShareOpen(true)}
-            className={`absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2.5 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-2xl glass-panel shadow-2xl backdrop-blur-xl animate-fadeIn max-w-[92vw] cursor-pointer transition ${
+            className={`absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-2xl glass-panel shadow-2xl backdrop-blur-xl animate-fadeIn max-w-[calc(100vw-130px)] sm:max-w-md cursor-pointer transition ${
               isDuo
-                ? 'border border-pink-500/50 hover:border-pink-400 shadow-pink-500/20'
-                : 'border border-cyan-400/50 hover:border-cyan-300 shadow-cyan-500/20'
+                ? 'border border-pink-500/60 hover:border-pink-400 shadow-pink-500/25 bg-slate-900/95'
+                : 'border border-cyan-400/60 hover:border-cyan-300 shadow-cyan-500/25 bg-slate-900/95'
             }`}
           >
             {isDuo ? (
@@ -122,14 +122,14 @@ function MainApp() {
               <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping shrink-0" />
             )}
 
-            <div className="flex items-center gap-1.5 truncate">
+            <div className="flex items-center gap-1.5 min-w-0 truncate">
               <span className="text-[11px] sm:text-xs font-black text-white truncate">
-                {isDuo ? (lang === 'km' ? 'DUO TRACKING (២នាក់)' : 'DUO TRACKING') : currentGroup.name}
+                {isDuo ? (lang === 'km' ? 'DUO (២នាក់)' : 'DUO') : currentGroup.name}
               </span>
-              <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-lg border shrink-0 ${
+              <span className={`text-[9px] sm:text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-lg border shrink-0 ${
                 isDuo 
-                  ? 'bg-pink-950/80 text-pink-300 border-pink-500/40' 
-                  : 'bg-slate-900 text-cyan-300 border-slate-700'
+                  ? 'bg-pink-950/90 text-pink-300 border-pink-500/40' 
+                  : 'bg-slate-950 text-cyan-300 border-slate-700'
               }`}>
                 {currentGroup.groupId} ({membersCount}/{currentGroup.maxMembers || (isDuo ? 2 : 50)})
               </span>
@@ -141,7 +141,7 @@ function MainApp() {
                 leaveGroup();
               }}
               title={lang === 'km' ? 'ចាកចេញ' : 'Leave'}
-              className="p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition shrink-0 ml-1"
+              className="p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition shrink-0 ml-0.5"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -157,21 +157,21 @@ function MainApp() {
           t={t}
         />
 
-        {/* Mobile Floating Group/Share Button (Bottom Center) */}
-        <div className="sm:hidden absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
+        {/* Mobile Floating Group/Share Button (Bottom Center, safely positioned without cutoff) */}
+        <div className="sm:hidden absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
           <button
             onClick={() => setIsShareOpen(true)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-white font-extrabold text-xs shadow-2xl active:scale-95 transition whitespace-nowrap cursor-pointer border ${
+            className={`flex items-center gap-2 px-3.5 py-2.5 rounded-2xl text-white font-black text-xs shadow-2xl active:scale-95 transition whitespace-nowrap cursor-pointer border backdrop-blur-xl ${
               isDuo
                 ? 'bg-gradient-to-r from-pink-500 via-rose-600 to-indigo-600 border-pink-400/50 shadow-pink-500/40'
                 : 'bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 border-cyan-400/50 shadow-cyan-500/40'
             }`}
           >
-            {isDuo ? <Heart className="w-3.5 h-3.5" /> : <Users className="w-3.5 h-3.5" />}
-            <span>
+            {isDuo ? <Heart className="w-3.5 h-3.5 text-white animate-bounce" /> : <Users className="w-3.5 h-3.5" />}
+            <span className="truncate max-w-[130px]">
               {currentGroup 
                 ? `${currentGroup.groupId} (${membersCount}/${currentGroup.maxMembers || (isDuo ? 2 : 50)})` 
-                : (lang === 'km' ? 'ចែករំលែក ២នាក់ / Group' : 'Share 2-Person / Group')}
+                : (lang === 'km' ? 'ចែករំលែក ២នាក់' : 'Share Duo')}
             </span>
           </button>
         </div>
