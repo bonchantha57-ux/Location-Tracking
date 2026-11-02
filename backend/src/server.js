@@ -30,6 +30,17 @@ const io = new Server(server, {
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({
+    name: 'MAP TRACKING API',
+    status: 'online',
+    version: '2.0.0',
+    timestamp: Date.now(),
+    health: '/api/health'
+  });
+});
+
 // Healthcheck
 app.get('/api/health', (req, res) => {
   res.json({
@@ -48,10 +59,9 @@ app.use('/api/admin', adminRoutes);
 // Setup WebSockets
 setupLocationSockets(io);
 
-// Start server
-server.listen(PORT, () => {
-  console.log(`🚀 MAP TRACKING Backend server running on http://localhost:${PORT}`);
+// Start server on 0.0.0.0 for cloud reverse proxies
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 MAP TRACKING Backend server running on http://0.0.0.0:${PORT}`);
   console.log(`📡 WebSocket ready on port ${PORT}`);
   console.log(`🔐 Database mode: ${db.isFirebase() ? 'Firebase Admin Cloud' : 'Local Persistent Storage'}`);
 });
-
