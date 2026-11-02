@@ -328,7 +328,7 @@ export default function MapView({ selectedUserId, onSelectUser, lang = 'km' }) {
       <button
         onClick={centerOnMe}
         title={lang === 'km' ? 'កំណត់ទីតាំងខ្ញុំ' : 'My Location'}
-        className="absolute bottom-6 left-3 sm:left-4 z-20 flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:px-3.5 sm:py-2.5 rounded-2xl bg-slate-900/95 text-cyan-400 border border-cyan-500/40 shadow-2xl backdrop-blur-md hover:bg-slate-800 transition active:scale-95 group font-bold text-xs"
+        className="absolute bottom-5 sm:bottom-6 left-3 sm:left-4 z-20 mb-[env(safe-area-inset-bottom,0px)] flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:px-3.5 sm:py-2.5 rounded-2xl bg-slate-900/95 text-cyan-400 border border-cyan-500/40 shadow-2xl backdrop-blur-md hover:bg-slate-800 transition active:scale-95 group font-bold text-xs"
       >
         <Navigation className="w-5 h-5 text-cyan-400 group-hover:scale-110 transition" />
         <span className="hidden sm:inline sm:ml-2">{lang === 'km' ? 'ទីតាំងខ្ញុំ' : 'My Location'}</span>

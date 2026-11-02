@@ -3,7 +3,11 @@ import { db } from '../config/firebaseAdmin.js';
 export async function updateLocation(req, res) {
   try {
     const { lat, lng, speed, heading, altitude, accuracy, isSharing } = req.body;
-    const uid = req.user.uid;
+    const uid = req.user?.uid;
+
+    if (!uid) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
 
     if (lat === undefined || lng === undefined) {
       return res.status(400).json({ error: 'Coordinates lat and lng required' });
@@ -30,7 +34,11 @@ export async function updateLocation(req, res) {
 export async function toggleSharing(req, res) {
   try {
     const { isSharing } = req.body;
-    const uid = req.user.uid;
+    const uid = req.user?.uid;
+
+    if (!uid) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
 
     const updatedUser = await db.toggleUserSharing(uid, Boolean(isSharing));
     return res.json({ success: true, isSharing: updatedUser.isSharing });
@@ -73,7 +81,11 @@ export async function joinTrackingRoom(req, res) {
 export async function createGroupHandler(req, res) {
   try {
     const { name, customId, type, maxMembers } = req.body;
-    const user = req.user;
+    let user = req.user;
+
+    if (!user || !user.uid) {
+      return res.status(401).json({ error: 'Please login first' });
+    }
 
     const isDuo = type === 'duo' || maxMembers === 2;
     const prefix = isDuo ? 'DUO' : 'GP';
@@ -105,6 +117,10 @@ export async function joinGroupHandler(req, res) {
   try {
     const { groupId } = req.body;
     const user = req.user;
+
+    if (!user || !user.uid) {
+      return res.status(401).json({ error: 'Please login first' });
+    }
 
     if (!groupId) {
       return res.status(400).json({ error: 'Please enter a Group ID' });
@@ -140,11 +156,13 @@ export async function getGroupHandler(req, res) {
 export async function leaveGroupHandler(req, res) {
   try {
     const { groupId } = req.body;
-    const uid = req.user.uid;
+    const uid = req.user?.uid;
+    if (!uid) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
     await db.leaveGroup(groupId, uid);
     return res.json({ success: true });
   } catch (err) {
     return res.status(500).json({ error: 'Failed to leave group' });
   }
 }
-

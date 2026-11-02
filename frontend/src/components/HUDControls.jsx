@@ -19,7 +19,7 @@ export default function HUDControls({ selectedUser, onClearSelected, lang = 'km'
   return (
     <>
       {/* Desktop Floating Telemetry Bar (Centered Bottom) */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 hidden md:flex items-center gap-4 px-5 py-2.5 rounded-2xl glass-panel shadow-2xl border border-slate-700/60 backdrop-blur-xl">
+      <div className="absolute bottom-5 sm:bottom-6 left-1/2 -translate-x-1/2 z-20 hidden md:flex items-center gap-4 px-5 py-2.5 rounded-2xl glass-panel shadow-2xl border border-slate-700/60 backdrop-blur-xl mb-[env(safe-area-inset-bottom,0px)]">
         {/* Speed */}
         <div className="flex items-center gap-2 pr-3 border-r border-slate-700/60">
           <div className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400">
@@ -82,10 +82,10 @@ export default function HUDControls({ selectedUser, onClearSelected, lang = 'km'
       </div>
 
       {/* Mobile Telemetry Pill / Bar (Bottom Right, compact and touch friendly) */}
-      <div className="md:hidden absolute bottom-6 right-3 z-20">
+      <div className="md:hidden absolute bottom-5 sm:bottom-6 right-3 z-20 mb-[env(safe-area-inset-bottom,0px)]">
         <button
           onClick={() => setMobileHudOpen(!mobileHudOpen)}
-          className="flex items-center gap-1.5 px-2.5 py-2.5 rounded-2xl bg-slate-900/95 text-cyan-400 border border-slate-700 shadow-2xl backdrop-blur-md text-xs font-mono font-bold active:scale-95 transition"
+          className="flex items-center gap-1.5 px-2.5 py-2 rounded-2xl bg-slate-900/95 text-cyan-400 border border-slate-700 shadow-2xl backdrop-blur-md text-xs font-mono font-bold active:scale-95 transition"
         >
           <Gauge className="w-3.5 h-3.5" />
           <span>{formatSpeed(myLocation.speed)}</span>
@@ -93,7 +93,7 @@ export default function HUDControls({ selectedUser, onClearSelected, lang = 'km'
         </button>
 
         {mobileHudOpen && (
-          <div className="absolute bottom-12 right-0 w-60 glass-dropdown rounded-2xl p-3 border border-slate-700/90 shadow-2xl space-y-2 animate-fadeIn z-30">
+          <div className="absolute bottom-11 right-0 w-60 glass-dropdown rounded-2xl p-3 border border-slate-700/90 shadow-2xl space-y-2 animate-fadeIn z-30">
             <div className="flex justify-between items-center text-xs pb-1.5 border-b border-slate-800">
               <span className="text-slate-400 font-semibold">{t.speed}:</span>
               <span className="font-bold text-white font-mono">{formatSpeed(myLocation.speed)}</span>
@@ -118,7 +118,7 @@ export default function HUDControls({ selectedUser, onClearSelected, lang = 'km'
 
       {/* Selected Friend Tracking Card - Positioned Cleanly above bottom bar on Mobile, never blocking map view */}
       {selectedUser && (
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 p-3 sm:px-4 rounded-2xl glass-panel border border-cyan-400/60 shadow-2xl backdrop-blur-2xl animate-slideUp w-[90vw] max-w-sm">
+        <div className="absolute bottom-20 sm:bottom-22 left-1/2 -translate-x-1/2 z-30 mb-[env(safe-area-inset-bottom,0px)] flex items-center gap-3 p-3 sm:px-4 rounded-2xl glass-panel border border-cyan-400/60 shadow-2xl backdrop-blur-2xl animate-slideUp w-[90vw] max-w-sm">
           <div className="relative shrink-0">
             <img
               src={selectedUser.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${selectedUser.uid}`}

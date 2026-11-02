@@ -77,7 +77,7 @@ function MainApp() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden font-sans select-none">
+    <div className="flex flex-col h-[100dvh] max-h-[100dvh] w-full bg-slate-950 text-slate-100 overflow-hidden font-sans select-none relative">
       {/* Top Navigation Bar */}
       <Navbar
         onOpenShare={() => setIsShareOpen(true)}
@@ -158,7 +158,7 @@ function MainApp() {
         />
 
         {/* Mobile Floating Group/Share Button (Bottom Center, safely positioned without cutoff) */}
-        <div className="sm:hidden absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
+        <div className="sm:hidden absolute bottom-5 sm:bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-auto mb-[env(safe-area-inset-bottom,0px)]">
           <button
             onClick={() => setIsShareOpen(true)}
             className={`flex items-center gap-2 px-3.5 py-2.5 rounded-2xl text-white font-black text-xs shadow-2xl active:scale-95 transition whitespace-nowrap cursor-pointer border backdrop-blur-xl ${

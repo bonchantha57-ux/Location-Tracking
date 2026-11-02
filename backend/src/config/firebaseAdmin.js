@@ -89,6 +89,22 @@ function syncCloud(promise) {
   ]).catch(() => {});
 }
 
+// Recursively sanitize objects so no keys with undefined values or undefined keys reach Firestore
+function sanitizeForFirestore(val) {
+  if (val === undefined) return null;
+  if (val === null || typeof val !== 'object') return val;
+  if (Array.isArray(val)) {
+    return val.map(item => sanitizeForFirestore(item)).filter(item => item !== undefined);
+  }
+  const clean = {};
+  for (const [key, value] of Object.entries(val)) {
+    if (key !== 'undefined' && key !== '' && value !== undefined) {
+      clean[key] = sanitizeForFirestore(value);
+    }
+  }
+  return clean;
+}
+
 export const db = {
   isFirebase: () => isConnected,
   getFirebaseApp: () => app,
@@ -97,12 +113,14 @@ export const db = {
 
   // Users Collection
   async getUser(uid) {
+    if (!uid) return null;
+    const cleanUid = String(uid);
     const data = readLocalDb();
-    if (data.users[uid]) return data.users[uid];
+    if (data.users && data.users[cleanUid]) return data.users[cleanUid];
 
     if (isConnected && firestoreDb) {
       try {
-        const userRef = doc(firestoreDb, 'users', uid);
+        const userRef = doc(firestoreDb, 'users', cleanUid);
         const snap = await Promise.race([
           getDoc(userRef),
           new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
@@ -114,9 +132,10 @@ export const db = {
   },
 
   async getUserByEmail(email) {
+    if (!email) return null;
     const cleanEmail = email.toLowerCase().trim();
     const data = readLocalDb();
-    const localUser = Object.values(data.users).find(u => u.email?.toLowerCase() === cleanEmail);
+    const localUser = Object.values(data.users || {}).find(u => u.email?.toLowerCase() === cleanEmail);
     if (localUser) return localUser;
 
     if (isConnected && firestoreDb) {
@@ -135,45 +154,55 @@ export const db = {
   },
 
   async setUser(uid, userData) {
+    if (!uid) return null;
+    const cleanUid = String(uid);
+    const sanitizedUser = sanitizeForFirestore({
+      uid: cleanUid,
+      ...userData
+    });
+
     // 1. Mirror in Local DB
     const data = readLocalDb();
-    data.users[uid] = { ...(data.users[uid] || {}), ...userData };
+    if (!data.users) data.users = {};
+    data.users[cleanUid] = { ...(data.users[cleanUid] || {}), ...sanitizedUser };
     writeLocalDb(data);
 
     // 2. Persist to Firestore asynchronously
     if (isConnected && firestoreDb) {
-      const userRef = doc(firestoreDb, 'users', uid);
-      syncCloud(setDoc(userRef, data.users[uid], { merge: true }));
+      const userRef = doc(firestoreDb, 'users', cleanUid);
+      syncCloud(setDoc(userRef, sanitizedUser, { merge: true }));
     }
 
-    return data.users[uid];
+    return data.users[cleanUid];
   },
 
   async getAllUsers() {
     const data = readLocalDb();
-    return Object.values(data.users);
+    return Object.values(data.users || {});
   },
 
   // Update user's live location in Firestore and Realtime Database
   async updateUserLocation(uid, locationData, isSharing = true) {
-    const update = {
+    if (!uid) return null;
+    const cleanUid = String(uid);
+    const update = sanitizeForFirestore({
       location: {
         ...locationData,
         updatedAt: Date.now()
       },
       isSharing,
       lastSeen: Date.now()
-    };
+    });
 
     // 1. Save in Firestore & local DB
-    const updated = await this.setUser(uid, update);
+    const updated = await this.setUser(cleanUid, update);
 
     // 2. Save in Firebase Realtime Database for high-frequency GPS telemetry
     if (isConnected && realtimeDb) {
       try {
-        const locRef = ref(realtimeDb, `locations/${uid}`);
+        const locRef = ref(realtimeDb, `locations/${cleanUid}`);
         await set(locRef, {
-          uid,
+          uid: cleanUid,
           lat: locationData.lat,
           lng: locationData.lng,
           speed: locationData.speed,
@@ -182,19 +211,19 @@ export const db = {
           isSharing,
           updatedAt: Date.now()
         });
-      } catch (e) {
-        // Realtime DB sync note
-      }
+      } catch (e) {}
     }
 
     return updated;
   },
 
   async toggleUserSharing(uid, isSharing) {
-    const updated = await this.setUser(uid, { isSharing, lastSeen: Date.now() });
+    if (!uid) return null;
+    const cleanUid = String(uid);
+    const updated = await this.setUser(cleanUid, { isSharing, lastSeen: Date.now() });
     if (isConnected && realtimeDb) {
       try {
-        const locRef = ref(realtimeDb, `locations/${uid}/isSharing`);
+        const locRef = ref(realtimeDb, `locations/${cleanUid}/isSharing`);
         await set(locRef, isSharing);
       } catch (e) {}
     }
@@ -203,49 +232,59 @@ export const db = {
 
   // Groups Management in Firestore & Realtime DB
   async createGroup(groupId, name, creator, options = {}) {
-    const cleanId = groupId.toUpperCase().trim();
+    const cleanId = String(groupId || ('GP' + Math.floor(1000 + Math.random() * 9000))).toUpperCase().trim();
     const isDuo = options.type === 'duo' || options.maxMembers === 2 || cleanId.startsWith('DUO-');
+    
+    // STRICT VALIDATION: ensure creator.uid is never undefined!
+    const creatorUid = String(creator?.uid || creator?.id || ('usr_' + Date.now().toString(36)));
+    const creatorName = creator?.displayName || creator?.name || creator?.email?.split('@')[0] || 'User';
+    const creatorAvatar = creator?.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${creatorUid}`;
+
+    const memberEntry = {
+      uid: creatorUid,
+      displayName: creatorName,
+      avatar: creatorAvatar,
+      role: 'admin',
+      joinedAt: Date.now()
+    };
+
     const groupData = {
       groupId: cleanId,
       name: name || (isDuo ? `Duo Tracking (${cleanId})` : `Group ${cleanId}`),
-      creatorUid: creator.uid,
-      creatorName: creator.displayName,
+      creatorUid,
+      creatorName,
       createdAt: Date.now(),
       type: isDuo ? 'duo' : (options.type || 'group'),
       maxMembers: isDuo ? 2 : (options.maxMembers || 50),
       members: {
-        [creator.uid]: {
-          uid: creator.uid,
-          displayName: creator.displayName,
-          avatar: creator.avatar,
-          role: 'admin',
-          joinedAt: Date.now()
-        }
+        [creatorUid]: memberEntry
       }
     };
+
+    const sanitizedGroup = sanitizeForFirestore(groupData);
 
     // Save in Local DB
     const data = readLocalDb();
     if (!data.groups) data.groups = {};
-    data.groups[cleanId] = groupData;
+    data.groups[cleanId] = sanitizedGroup;
     writeLocalDb(data);
 
     // Save in Firestore asynchronously
     if (isConnected && firestoreDb) {
-      syncCloud(setDoc(doc(firestoreDb, 'groups', cleanId), groupData));
+      syncCloud(setDoc(doc(firestoreDb, 'groups', cleanId), sanitizedGroup));
     }
 
     // Save in Realtime DB asynchronously
     if (isConnected && realtimeDb) {
-      syncCloud(set(ref(realtimeDb, `groups/${cleanId}`), groupData));
+      syncCloud(set(ref(realtimeDb, `groups/${cleanId}`), sanitizedGroup));
     }
 
-    return groupData;
+    return sanitizedGroup;
   },
 
   async getGroup(groupId) {
     if (!groupId) return null;
-    const cleanId = groupId.toUpperCase().trim();
+    const cleanId = String(groupId).toUpperCase().trim();
 
     const data = readLocalDb();
     if (data.groups && data.groups[cleanId]) {
@@ -266,8 +305,13 @@ export const db = {
   },
 
   async joinGroup(groupId, user) {
-    if (!groupId || !user) return null;
-    const cleanId = groupId.toUpperCase().trim();
+    if (!groupId) return null;
+    const cleanId = String(groupId).toUpperCase().trim();
+
+    // STRICT VALIDATION: ensure userUid is never undefined!
+    const userUid = String(user?.uid || user?.id || ('usr_' + Date.now().toString(36)));
+    const userName = user?.displayName || user?.name || user?.email?.split('@')[0] || 'User';
+    const userAvatar = user?.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${userUid}`;
 
     let group = await this.getGroup(cleanId);
     const data = readLocalDb();
@@ -275,7 +319,11 @@ export const db = {
     if (!group) {
       // Create if doesn't exist
       const isDuo = cleanId.startsWith('DUO-');
-      group = await this.createGroup(cleanId, isDuo ? 'Duo Private (២នាក់)' : `Group ${cleanId}`, user, {
+      group = await this.createGroup(cleanId, isDuo ? 'Duo Private (២នាក់)' : `Group ${cleanId}`, {
+        uid: userUid,
+        displayName: userName,
+        avatar: userAvatar
+      }, {
         type: isDuo ? 'duo' : 'group',
         maxMembers: isDuo ? 2 : 50
       });
@@ -283,7 +331,7 @@ export const db = {
     }
 
     const memberUids = Object.keys(group.members || {});
-    const isAlreadyMember = memberUids.includes(user.uid);
+    const isAlreadyMember = memberUids.includes(userUid);
     const maxMembers = group.maxMembers || (group.type === 'duo' ? 2 : null);
 
     if (!isAlreadyMember && maxMembers && memberUids.length >= maxMembers) {
@@ -298,26 +346,30 @@ export const db = {
 
     if (!data.groups) data.groups = {};
     if (!data.groups[cleanId]) data.groups[cleanId] = group;
+    if (!data.groups[cleanId].members) data.groups[cleanId].members = {};
 
-    data.groups[cleanId].members[user.uid] = {
-      uid: user.uid,
-      displayName: user.displayName,
-      avatar: user.avatar,
-      role: isAlreadyMember ? (data.groups[cleanId].members[user.uid]?.role || 'member') : 'member',
-      joinedAt: isAlreadyMember ? (data.groups[cleanId].members[user.uid]?.joinedAt || Date.now()) : Date.now()
-    };
+    const memberData = sanitizeForFirestore({
+      uid: userUid,
+      displayName: userName,
+      avatar: userAvatar,
+      role: isAlreadyMember ? (data.groups[cleanId].members[userUid]?.role || 'member') : 'member',
+      joinedAt: isAlreadyMember ? (data.groups[cleanId].members[userUid]?.joinedAt || Date.now()) : Date.now()
+    });
+
+    data.groups[cleanId].members[userUid] = memberData;
     writeLocalDb(data);
 
     const updatedGroup = data.groups[cleanId];
 
     if (isConnected && firestoreDb) {
+      const sanitizedMembers = sanitizeForFirestore(updatedGroup.members);
       syncCloud(setDoc(doc(firestoreDb, 'groups', cleanId), {
-        members: updatedGroup.members
+        members: sanitizedMembers
       }, { merge: true }));
     }
 
     if (isConnected && realtimeDb) {
-      syncCloud(set(ref(realtimeDb, `groups/${cleanId}/members/${user.uid}`), updatedGroup.members[user.uid]));
+      syncCloud(set(ref(realtimeDb, `groups/${cleanId}/members/${userUid}`), memberData));
     }
 
     return updatedGroup;
@@ -325,21 +377,23 @@ export const db = {
 
   async leaveGroup(groupId, uid) {
     if (!groupId || !uid) return false;
-    const cleanId = groupId.toUpperCase().trim();
+    const cleanId = String(groupId).toUpperCase().trim();
+    const cleanUid = String(uid);
 
     const data = readLocalDb();
-    if (data.groups && data.groups[cleanId] && data.groups[cleanId].members[uid]) {
-      delete data.groups[cleanId].members[uid];
+    if (data.groups && data.groups[cleanId] && data.groups[cleanId].members && data.groups[cleanId].members[cleanUid]) {
+      delete data.groups[cleanId].members[cleanUid];
       writeLocalDb(data);
 
       if (isConnected && firestoreDb) {
+        const sanitizedMembers = sanitizeForFirestore(data.groups[cleanId].members);
         syncCloud(setDoc(doc(firestoreDb, 'groups', cleanId), {
-          members: data.groups[cleanId].members
+          members: sanitizedMembers
         }, { merge: true }));
       }
 
       if (isConnected && realtimeDb) {
-        syncCloud(set(ref(realtimeDb, `groups/${cleanId}/members/${uid}`), null));
+        syncCloud(set(ref(realtimeDb, `groups/${cleanId}/members/${cleanUid}`), null));
       }
 
       return true;

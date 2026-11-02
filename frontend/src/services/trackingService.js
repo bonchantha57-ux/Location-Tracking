@@ -12,6 +12,22 @@ import {
   where 
 } from '../config/firebase';
 
+// Recursively sanitize objects for Firestore
+function sanitizeData(val) {
+  if (val === undefined) return null;
+  if (val === null || typeof val !== 'object') return val;
+  if (Array.isArray(val)) {
+    return val.map(item => sanitizeData(item)).filter(item => item !== undefined);
+  }
+  const clean = {};
+  for (const [key, value] of Object.entries(val)) {
+    if (key !== 'undefined' && key !== '' && value !== undefined) {
+      clean[key] = sanitizeData(value);
+    }
+  }
+  return clean;
+}
+
 // Helper: purge legacy demo data if present in localStorage
 function cleanLegacyFakeData() {
   try {
@@ -70,19 +86,21 @@ export const TrackingService = {
   async saveUserProfile(user) {
     if (!user || !user.uid) return false;
 
+    const sanitized = sanitizeData({
+      uid: String(user.uid),
+      email: user.email || '',
+      displayName: user.displayName || 'User',
+      avatar: user.avatar || '',
+      role: user.role || 'user',
+      isSharing: user.isSharing ?? true,
+      lastSeen: Date.now(),
+      createdAt: user.createdAt || Date.now()
+    });
+
     if (isConfigured && db) {
       try {
-        const userRef = doc(db, 'users', user.uid);
-        await setDoc(userRef, {
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName || 'User',
-          avatar: user.avatar || '',
-          role: user.role || 'user',
-          isSharing: user.isSharing ?? true,
-          lastSeen: Date.now(),
-          createdAt: user.createdAt || Date.now()
-        }, { merge: true });
+        const userRef = doc(db, 'users', String(user.uid));
+        await setDoc(userRef, sanitized, { merge: true });
         return true;
       } catch (err) {
         console.error("Firebase saveUserProfile error:", err);
@@ -95,17 +113,11 @@ export const TrackingService = {
     if (idx >= 0) {
       users[idx] = { 
         ...users[idx], 
-        ...user, 
+        ...sanitized, 
         lastSeen: Date.now() 
       };
     } else {
-      users.push({
-        ...user,
-        role: user.role || 'user',
-        isSharing: user.isSharing ?? true,
-        createdAt: Date.now(),
-        lastSeen: Date.now()
-      });
+      users.push(sanitized);
     }
     saveLocalUsers(users);
     window.dispatchEvent(new CustomEvent('map_tracking_users_changed'));
@@ -116,17 +128,19 @@ export const TrackingService = {
   async updateUserLocation(uid, locationData, isSharing = true) {
     if (!uid) return false;
 
+    const locUpdate = sanitizeData({
+      location: {
+        ...locationData,
+        updatedAt: Date.now()
+      },
+      isSharing: isSharing,
+      lastSeen: Date.now()
+    });
+
     if (isConfigured && db) {
       try {
-        const userRef = doc(db, 'users', uid);
-        await updateDoc(userRef, {
-          location: {
-            ...locationData,
-            updatedAt: Date.now()
-          },
-          isSharing: isSharing,
-          lastSeen: Date.now()
-        });
+        const userRef = doc(db, 'users', String(uid));
+        await updateDoc(userRef, locUpdate);
         return true;
       } catch (err) {
         console.error("Firebase updateUserLocation error:", err);
@@ -137,10 +151,7 @@ export const TrackingService = {
     const users = getLocalUsers();
     const idx = users.findIndex(u => u.uid === uid);
     if (idx >= 0) {
-      users[idx].location = {
-        ...locationData,
-        updatedAt: Date.now()
-      };
+      users[idx].location = locUpdate.location;
       users[idx].isSharing = isSharing;
       users[idx].lastSeen = Date.now();
       saveLocalUsers(users);
@@ -155,7 +166,7 @@ export const TrackingService = {
 
     if (isConfigured && db) {
       try {
-        const userRef = doc(db, 'users', uid);
+        const userRef = doc(db, 'users', String(uid));
         await updateDoc(userRef, {
           isSharing: isSharing,
           lastSeen: Date.now()
@@ -210,18 +221,21 @@ export const TrackingService = {
   // Create or join a shared tracking session/room
   async joinTrackingRoom(roomId, user) {
     if (!roomId || !user) return;
+    const cleanUid = String(user.uid || user.id || ('usr_' + Date.now().toString(36)));
+
+    const memberData = sanitizeData({
+      uid: cleanUid,
+      displayName: user.displayName || 'User',
+      avatar: user.avatar || '',
+      joinedAt: Date.now()
+    });
 
     if (isConfigured && db) {
       try {
         const roomRef = doc(db, 'tracking_rooms', roomId);
         const snap = await getDoc(roomRef);
         const members = snap.exists() ? snap.data().members || {} : {};
-        members[user.uid] = {
-          uid: user.uid,
-          displayName: user.displayName,
-          avatar: user.avatar,
-          joinedAt: Date.now()
-        };
+        members[cleanUid] = memberData;
         await setDoc(roomRef, {
           roomId,
           members,
@@ -238,12 +252,7 @@ export const TrackingService = {
     if (!rooms[roomId]) {
       rooms[roomId] = { roomId, members: {}, updatedAt: Date.now() };
     }
-    rooms[roomId].members[user.uid] = {
-      uid: user.uid,
-      displayName: user.displayName,
-      avatar: user.avatar,
-      joinedAt: Date.now()
-    };
+    rooms[roomId].members[cleanUid] = memberData;
     saveLocalRooms(rooms);
     window.dispatchEvent(new CustomEvent(`map_tracking_room_${roomId}`));
     return true;
