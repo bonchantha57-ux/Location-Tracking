@@ -4,17 +4,28 @@ import {
   Gauge, 
   MapPin, 
   Radio, 
-  Navigation,
-  X,
-  ChevronUp,
-  ChevronDown
+  Navigation, 
+  X, 
+  ChevronUp, 
+  ChevronDown,
+  Route
 } from 'lucide-react';
-import { useTracking } from '../context/TrackingContext';
+import { useTracking, calculateTrailDistanceKm } from '../context/TrackingContext';
 import { formatDistance, formatSpeed } from '../utils/geoUtils';
 
 export default function HUDControls({ selectedUser, onClearSelected, lang = 'km', t }) {
-  const { myLocation } = useTracking();
+  const { 
+    myLocation, 
+    currentGroup, 
+    groupTrails, 
+    focusedTrailUid, 
+    setFocusedTrailUid 
+  } = useTracking();
   const [mobileHudOpen, setMobileHudOpen] = useState(false);
+
+  const selectedUserTrail = selectedUser ? (groupTrails?.[selectedUser.uid] || []) : [];
+  const selectedUserTrailDist = calculateTrailDistanceKm(selectedUserTrail);
+  const isSelectedTrailFocused = selectedUser ? focusedTrailUid === selectedUser.uid : false;
 
   return (
     <>
@@ -85,7 +96,7 @@ export default function HUDControls({ selectedUser, onClearSelected, lang = 'km'
       <div className="md:hidden absolute bottom-5 sm:bottom-6 right-3 z-20 mb-[env(safe-area-inset-bottom,0px)]">
         <button
           onClick={() => setMobileHudOpen(!mobileHudOpen)}
-          className="flex items-center gap-1.5 px-2.5 py-2 rounded-2xl bg-slate-900/95 text-cyan-400 border border-slate-700 shadow-2xl backdrop-blur-md text-xs font-mono font-bold active:scale-95 transition"
+          className="flex items-center gap-1.5 px-2.5 py-2 rounded-2xl bg-slate-900/95 text-cyan-400 border border-slate-700 shadow-2xl backdrop-blur-md text-xs font-mono font-bold active:scale-95 transition cursor-pointer"
         >
           <Gauge className="w-3.5 h-3.5" />
           <span>{formatSpeed(myLocation.speed)}</span>
@@ -116,45 +127,70 @@ export default function HUDControls({ selectedUser, onClearSelected, lang = 'km'
         )}
       </div>
 
-      {/* Selected Friend Tracking Card - Positioned Cleanly above bottom bar on Mobile, never blocking map view */}
+      {/* Selected Friend Tracking Card */}
       {selectedUser && (
-        <div className="absolute bottom-20 sm:bottom-22 left-1/2 -translate-x-1/2 z-30 mb-[env(safe-area-inset-bottom,0px)] flex items-center gap-3 p-3 sm:px-4 rounded-2xl glass-panel border border-cyan-400/60 shadow-2xl backdrop-blur-2xl animate-slideUp w-[90vw] max-w-sm">
-          <div className="relative shrink-0">
-            <img
-              src={selectedUser.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${selectedUser.uid}`}
-              alt={selectedUser.displayName}
-              className="w-10 h-10 rounded-xl border border-cyan-400 object-cover"
-            />
-            <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-slate-900 animate-ping" />
+        <div className="absolute bottom-20 sm:bottom-22 left-1/2 -translate-x-1/2 z-30 mb-[env(safe-area-inset-bottom,0px)] flex flex-col p-3 sm:px-4 rounded-2xl glass-panel border border-cyan-400/60 shadow-2xl backdrop-blur-2xl animate-slideUp w-[92vw] max-w-sm">
+          <div className="flex items-center gap-3">
+            <div className="relative shrink-0">
+              <img
+                src={selectedUser.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${selectedUser.uid}`}
+                alt={selectedUser.displayName}
+                className="w-10 h-10 rounded-xl border border-cyan-400 object-cover"
+              />
+              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-slate-900 animate-ping" />
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xs sm:text-sm font-black text-white truncate max-w-[130px] sm:max-w-[170px]">
+                  {selectedUser.displayName}
+                </span>
+                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
+                  LIVE
+                </span>
+              </div>
+              <div className="flex items-center gap-2.5 text-xs mt-0.5">
+                <span className="text-cyan-300 font-bold flex items-center gap-1">
+                  <Navigation className="w-3 h-3 text-cyan-400" />
+                  {formatDistance(selectedUser.distanceKm)}
+                </span>
+                <span className="text-slate-400 text-[11px] font-mono">
+                  {formatSpeed(selectedUser.location?.speed)}
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={onClearSelected}
+              className="p-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition shrink-0 cursor-pointer"
+              title="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
 
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-xs sm:text-sm font-black text-white truncate max-w-[130px] sm:max-w-[180px]">
-                {selectedUser.displayName}
-              </span>
-              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
-                LIVE
-              </span>
-            </div>
-            <div className="flex items-center gap-2.5 text-xs mt-0.5">
-              <span className="text-cyan-300 font-bold flex items-center gap-1">
-                <Navigation className="w-3 h-3 text-cyan-400" />
-                {formatDistance(selectedUser.distanceKm)}
-              </span>
-              <span className="text-slate-400 text-[11px] font-mono">
-                {formatSpeed(selectedUser.location?.speed)}
-              </span>
-            </div>
-          </div>
+          {/* Movement Trail Action if Member is in Group */}
+          {currentGroup && selectedUserTrail.length > 0 && (
+            <div className="mt-2.5 pt-2 border-t border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-1 text-[11px] text-pink-300 font-mono">
+                <Route className="w-3.5 h-3.5 text-pink-400" />
+                <span>{lang === 'km' ? 'បានធ្វើដំណើរ' : 'Traveled'}: <strong>{formatDistance(selectedUserTrailDist)}</strong> ({selectedUserTrail.length} ចំណុច)</span>
+              </div>
 
-          <button
-            onClick={onClearSelected}
-            className="p-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition shrink-0"
-            title="Close"
-          >
-            <X className="w-4 h-4" />
-          </button>
+              <button
+                type="button"
+                onClick={() => setFocusedTrailUid(isSelectedTrailFocused ? null : selectedUser.uid)}
+                className={`px-2.5 py-1 rounded-xl text-[10px] font-bold transition flex items-center gap-1 cursor-pointer ${
+                  isSelectedTrailFocused
+                    ? 'bg-gradient-to-r from-pink-500 to-rose-600 text-white shadow-md'
+                    : 'bg-slate-800 hover:bg-slate-750 text-pink-300 border border-pink-500/40'
+                }`}
+              >
+                <Route className="w-3 h-3" />
+                <span>{isSelectedTrailFocused ? (lang === 'km' ? 'លែង Focus' : 'Unfocus') : (lang === 'km' ? 'មើលដាន' : 'View Trail')}</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
     </>

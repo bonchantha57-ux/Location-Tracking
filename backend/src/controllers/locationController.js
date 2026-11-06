@@ -153,6 +153,16 @@ export async function getGroupHandler(req, res) {
   }
 }
 
+export async function getGroupTrailsHandler(req, res) {
+  try {
+    const { groupId } = req.params;
+    const trails = await db.getGroupTrails(groupId);
+    return res.json({ success: true, trails });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to fetch group trails' });
+  }
+}
+
 export async function leaveGroupHandler(req, res) {
   try {
     const { groupId } = req.body;

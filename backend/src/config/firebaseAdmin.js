@@ -258,6 +258,9 @@ export const db = {
       maxMembers: isDuo ? 2 : (options.maxMembers || 50),
       members: {
         [creatorUid]: memberEntry
+      },
+      trails: {
+        [creatorUid]: []
       }
     };
 
@@ -347,6 +350,8 @@ export const db = {
     if (!data.groups) data.groups = {};
     if (!data.groups[cleanId]) data.groups[cleanId] = group;
     if (!data.groups[cleanId].members) data.groups[cleanId].members = {};
+    if (!data.groups[cleanId].trails) data.groups[cleanId].trails = {};
+    if (!data.groups[cleanId].trails[userUid]) data.groups[cleanId].trails[userUid] = [];
 
     const memberData = sanitizeForFirestore({
       uid: userUid,
@@ -399,5 +404,84 @@ export const db = {
       return true;
     }
     return false;
+  },
+
+  // Record a movement track point (bread crumb / history trail) for a member in a group
+  async recordGroupTrailPoint(groupId, uid, locationData) {
+    if (!groupId || !uid || !locationData || locationData.lat === undefined) return null;
+    const cleanId = String(groupId).toUpperCase().trim();
+    const cleanUid = String(uid);
+
+    const data = readLocalDb();
+    if (!data.groups || !data.groups[cleanId]) return null;
+    const group = data.groups[cleanId];
+    if (!group.trails) group.trails = {};
+    if (!group.trails[cleanUid]) group.trails[cleanUid] = [];
+
+    const userTrail = group.trails[cleanUid];
+    const newPoint = {
+      lat: Number(locationData.lat),
+      lng: Number(locationData.lng),
+      speed: Number(locationData.speed || 0),
+      heading: Number(locationData.heading || 0),
+      altitude: Number(locationData.altitude || 0),
+      timestamp: Number(locationData.timestamp || Date.now())
+    };
+
+    // Filter micro jitter: only record if shifted by at least ~4 meters or 1st point
+    if (userTrail.length > 0) {
+      const lastPoint = userTrail[userTrail.length - 1];
+      const dLat = Math.abs(lastPoint.lat - newPoint.lat);
+      const dLng = Math.abs(lastPoint.lng - newPoint.lng);
+      if (dLat < 0.00004 && dLng < 0.00004) {
+        return null; // stationary
+      }
+    }
+
+    // Keep up to 600 points per user trail
+    if (userTrail.length >= 600) {
+      userTrail.shift();
+    }
+    userTrail.push(newPoint);
+    writeLocalDb(data);
+
+    // Persist to Realtime DB and Firestore
+    if (isConnected && realtimeDb) {
+      syncCloud(set(ref(realtimeDb, `groups/${cleanId}/trails/${cleanUid}`), userTrail));
+    }
+    if (isConnected && firestoreDb) {
+      syncCloud(setDoc(doc(firestoreDb, 'groups', cleanId), {
+        trails: {
+          [cleanUid]: userTrail
+        }
+      }, { merge: true }));
+    }
+
+    return newPoint;
+  },
+
+  // Get historical trails for all members in a group
+  async getGroupTrails(groupId) {
+    if (!groupId) return {};
+    const cleanId = String(groupId).toUpperCase().trim();
+    const data = readLocalDb();
+    if (data.groups && data.groups[cleanId]?.trails) {
+      return data.groups[cleanId].trails;
+    }
+
+    if (isConnected && firestoreDb) {
+      try {
+        const snap = await Promise.race([
+          getDoc(doc(firestoreDb, 'groups', cleanId)),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
+        ]);
+        if (snap?.exists()) {
+          const groupData = snap.data();
+          return groupData.trails || {};
+        }
+      } catch (e) {}
+    }
+
+    return {};
   }
 };

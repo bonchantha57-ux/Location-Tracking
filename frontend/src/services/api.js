@@ -132,6 +132,17 @@ export const api = {
     return data.group;
   },
 
+  async getGroupTrails(groupId) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/location/group/${groupId}/trails`);
+      if (!res.ok) return {};
+      const data = await res.json();
+      return data.trails || {};
+    } catch (e) {
+      return {};
+    }
+  },
+
   async leaveGroup(groupId) {
     const res = await fetch(`${API_BASE_URL}/location/group/leave`, {
       method: 'POST',
@@ -177,4 +188,3 @@ export const api = {
     return data.user;
   }
 };
-

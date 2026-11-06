@@ -16,6 +16,20 @@ const DEFAULT_COORDS = {
   timestamp: Date.now()
 };
 
+// Calculate total distance traveled in kilometers from an array of trail points
+export function calculateTrailDistanceKm(trailPoints = []) {
+  if (!trailPoints || trailPoints.length < 2) return 0;
+  let total = 0;
+  for (let i = 0; i < trailPoints.length - 1; i++) {
+    const p1 = trailPoints[i];
+    const p2 = trailPoints[i + 1];
+    if (p1?.lat && p2?.lat) {
+      total += calculateDistanceKm(p1.lat, p1.lng, p2.lat, p2.lng);
+    }
+  }
+  return total;
+}
+
 export function TrackingProvider({ children }) {
   const { currentUser } = useAuth();
   const [myLocation, setMyLocation] = useState(DEFAULT_COORDS);
@@ -31,6 +45,21 @@ export function TrackingProvider({ children }) {
     }
   });
   const [mapStyle, setMapStyle] = useState('satellite');
+
+  // Movement Trails / Breadcrumbs State
+  const [groupTrails, setGroupTrails] = useState(() => {
+    try {
+      const savedGroup = localStorage.getItem('MAP_TRACKING_CURRENT_GROUP');
+      if (savedGroup) {
+        const parsed = JSON.parse(savedGroup);
+        const savedTrails = localStorage.getItem(`MAP_TRACKING_TRAILS_${parsed.groupId}`);
+        return savedTrails ? JSON.parse(savedTrails) : {};
+      }
+    } catch (e) {}
+    return {};
+  });
+  const [showTrails, setShowTrails] = useState(true);
+  const [focusedTrailUid, setFocusedTrailUid] = useState(null);
 
   const watchIdRef = useRef(null);
 
@@ -56,6 +85,41 @@ export function TrackingProvider({ children }) {
   useEffect(() => {
     refreshUsers();
   }, []);
+
+  // Sync historical trails when currentGroup changes
+  useEffect(() => {
+    if (!currentGroup?.groupId) {
+      setGroupTrails({});
+      setFocusedTrailUid(null);
+      return;
+    }
+
+    const cleanGroupId = currentGroup.groupId.toUpperCase().trim();
+
+    // 1. Load from localStorage cache
+    try {
+      const cached = localStorage.getItem(`MAP_TRACKING_TRAILS_${cleanGroupId}`);
+      if (cached) {
+        setGroupTrails(JSON.parse(cached));
+      }
+    } catch (e) {}
+
+    // 2. Fetch fresh trails from backend
+    api.getGroupTrails(cleanGroupId).then((serverTrails) => {
+      if (serverTrails && Object.keys(serverTrails).length > 0) {
+        setGroupTrails((prev) => {
+          const merged = { ...prev, ...serverTrails };
+          try {
+            localStorage.setItem(`MAP_TRACKING_TRAILS_${cleanGroupId}`, JSON.stringify(merged));
+          } catch (e) {}
+          return merged;
+        });
+      }
+    });
+
+    // 3. Request fresh sync via WebSocket
+    socket.emit('get_group_trails', { groupId: cleanGroupId });
+  }, [currentGroup?.groupId]);
 
   // WebSocket listeners
   useEffect(() => {
@@ -96,20 +160,64 @@ export function TrackingProvider({ children }) {
           if (g) {
             setCurrentGroup(g);
             localStorage.setItem('MAP_TRACKING_CURRENT_GROUP', JSON.stringify(g));
+            if (g.trails) {
+              setGroupTrails(g.trails);
+            }
           }
         });
         refreshUsers();
       }
     }
 
+    // Historical movement trails sync from socket
+    function onGroupTrailsSync(data) {
+      if (!currentGroup || data.groupId !== currentGroup.groupId) return;
+      if (data.trails) {
+        setGroupTrails((prev) => {
+          const merged = { ...prev, ...data.trails };
+          try {
+            localStorage.setItem(`MAP_TRACKING_TRAILS_${currentGroup.groupId}`, JSON.stringify(merged));
+          } catch (e) {}
+          return merged;
+        });
+      }
+    }
+
+    // Live movement breadcrumb point from socket
+    function onGroupTrailPoint(data) {
+      if (!currentGroup || data.groupId !== currentGroup.groupId) return;
+      if (data.uid && data.point) {
+        setGroupTrails((prev) => {
+          const userPts = prev[data.uid] ? [...prev[data.uid]] : [];
+          if (userPts.length > 0 && userPts[userPts.length - 1].timestamp === data.point.timestamp) {
+            return prev;
+          }
+          if (userPts.length >= 600) userPts.shift();
+          userPts.push(data.point);
+          const updated = {
+            ...prev,
+            [data.uid]: userPts
+          };
+          try {
+            localStorage.setItem(`MAP_TRACKING_TRAILS_${currentGroup.groupId}`, JSON.stringify(updated));
+          } catch (e) {}
+          return updated;
+        });
+      }
+    }
+
     socket.on('user_location_update', onLocationUpdate);
     socket.on('user_sharing_toggled', onSharingToggled);
     socket.on('group_member_joined', onMemberJoinedGroup);
+    socket.on('group_trails_sync', onGroupTrailsSync);
+    socket.on('group_trail_point', onGroupTrailPoint);
 
     return () => {
       socket.off('user_location_update', onLocationUpdate);
       socket.off('user_sharing_toggled', onSharingToggled);
       socket.off('group_member_joined', onMemberJoinedGroup);
+      socket.off('group_trails_sync', onGroupTrailsSync);
+      socket.off('group_trail_point', onGroupTrailPoint);
     };
   }, [currentGroup]);
 
@@ -120,33 +228,64 @@ export function TrackingProvider({ children }) {
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const newLoc = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-          accuracy: Math.round(position.coords.accuracy || 10),
-          speed: position.coords.speed || 0,
-          heading: position.coords.heading || 0,
-          altitude: position.coords.altitude || 10,
-          timestamp: Date.now()
-        };
-        setMyLocation(newLoc);
-        setHasLocationPermission(true);
+    const handleNewLocation = (position) => {
+      const newLoc = {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+        accuracy: Math.round(position.coords.accuracy || 10),
+        speed: position.coords.speed || 0,
+        heading: position.coords.heading || 0,
+        altitude: position.coords.altitude || 10,
+        timestamp: Date.now()
+      };
+      setMyLocation(newLoc);
+      setHasLocationPermission(true);
 
-        if (currentUser && isSharing) {
-          api.updateLocation(newLoc, true);
-          socket.emit('send_location', {
-            uid: currentUser.uid,
-            location: newLoc,
-            isSharing: true,
-            groupId: currentGroup?.groupId
+      if (currentUser && isSharing) {
+        api.updateLocation(newLoc, true);
+        socket.emit('send_location', {
+          uid: currentUser.uid,
+          location: newLoc,
+          isSharing: true,
+          groupId: currentGroup?.groupId
+        });
+
+        // Locally append user's own point to trail for instant zero-lag feedback
+        if (currentGroup?.groupId) {
+          const myPoint = {
+            lat: newLoc.lat,
+            lng: newLoc.lng,
+            speed: newLoc.speed || 0,
+            heading: newLoc.heading || 0,
+            altitude: newLoc.altitude || 0,
+            timestamp: newLoc.timestamp
+          };
+          setGroupTrails((prev) => {
+            const myPts = prev[currentUser.uid] ? [...prev[currentUser.uid]] : [];
+            if (myPts.length > 0) {
+              const last = myPts[myPts.length - 1];
+              const dLat = Math.abs(last.lat - myPoint.lat);
+              const dLng = Math.abs(last.lng - myPoint.lng);
+              if (dLat < 0.00004 && dLng < 0.00004) return prev;
+            }
+            if (myPts.length >= 600) myPts.shift();
+            myPts.push(myPoint);
+            const updated = {
+              ...prev,
+              [currentUser.uid]: myPts
+            };
+            try {
+              localStorage.setItem(`MAP_TRACKING_TRAILS_${currentGroup.groupId}`, JSON.stringify(updated));
+            } catch (e) {}
+            return updated;
           });
         }
-      },
-      (error) => {
-        console.warn("Geolocation permission note:", error.message);
-      },
+      }
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      handleNewLocation,
+      (error) => console.warn("Geolocation permission note:", error.message),
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
 
@@ -155,29 +294,7 @@ export function TrackingProvider({ children }) {
     }
 
     watchIdRef.current = navigator.geolocation.watchPosition(
-      (position) => {
-        const newLoc = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-          accuracy: Math.round(position.coords.accuracy || 10),
-          speed: position.coords.speed || 0,
-          heading: position.coords.heading || 0,
-          altitude: position.coords.altitude || 10,
-          timestamp: Date.now()
-        };
-        setMyLocation(newLoc);
-        setHasLocationPermission(true);
-
-        if (currentUser && isSharing) {
-          api.updateLocation(newLoc, true);
-          socket.emit('send_location', {
-            uid: currentUser.uid,
-            location: newLoc,
-            isSharing: true,
-            groupId: currentGroup?.groupId
-          });
-        }
-      },
+      handleNewLocation,
       (err) => console.warn("Watch position note:", err),
       { enableHighAccuracy: true, maximumAge: 3000, timeout: 20000 }
     );
@@ -236,6 +353,8 @@ export function TrackingProvider({ children }) {
       await api.leaveGroup(currentGroup.groupId);
       socket.emit('leave_group', { groupId: currentGroup.groupId, uid: currentUser.uid });
       setCurrentGroup(null);
+      setGroupTrails({});
+      setFocusedTrailUid(null);
       localStorage.removeItem('MAP_TRACKING_CURRENT_GROUP');
     }
   };
@@ -275,7 +394,13 @@ export function TrackingProvider({ children }) {
     joinGroup,
     leaveGroup,
     mapStyle,
-    setMapStyle
+    setMapStyle,
+    // Movement Trails Exports
+    groupTrails,
+    showTrails,
+    setShowTrails,
+    focusedTrailUid,
+    setFocusedTrailUid
   };
 
   return <TrackingContext.Provider value={value}>{children}</TrackingContext.Provider>;

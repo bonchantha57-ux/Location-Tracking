@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import L from 'leaflet';
-import { Layers, Navigation, Plus, Minus, Check } from 'lucide-react';
-import { useTracking } from '../context/TrackingContext';
+import { Layers, Navigation, Plus, Minus, Check, Route } from 'lucide-react';
+import { useTracking, calculateTrailDistanceKm } from '../context/TrackingContext';
 import { useAuth } from '../context/AuthContext';
 import { formatDistance, formatSpeed, timeAgo } from '../utils/geoUtils';
 
@@ -33,22 +33,46 @@ const MAP_PROVIDERS = {
   }
 };
 
+// Vibrant Neon Color Palette for group members' movement trails
+const TRAIL_COLORS = [
+  { stroke: '#06b6d4', glow: '#22d3ee', name: 'Cyan' },      // User (Self)
+  { stroke: '#ec4899', glow: '#f472b6', name: 'Pink' },      // Duo Partner
+  { stroke: '#10b981', glow: '#34d399', name: 'Emerald' },   // Member 1
+  { stroke: '#f59e0b', glow: '#fbbf24', name: 'Amber' },     // Member 2
+  { stroke: '#8b5cf6', glow: '#a78bfa', name: 'Purple' },    // Member 3
+  { stroke: '#3b82f6', glow: '#60a5fa', name: 'Blue' },      // Member 4
+  { stroke: '#14b8a6', glow: '#2dd4bf', name: 'Teal' },      // Member 5
+  { stroke: '#f97316', glow: '#fb923c', name: 'Orange' },    // Member 6
+];
+
 export default function MapView({ selectedUserId, onSelectUser, lang = 'km' }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const tileLayerRef = useRef(null);
   
-  // Persistent layers & markers to eliminate DOM thrashing and jittering ("ប្រកាច់ៗ")
+  // Persistent layers & markers
+  const trailsGroupRef = useRef(null);
   const markersGroupRef = useRef(null);
   const linesGroupRef = useRef(null);
   const friendMarkersMapRef = useRef(new Map());
   const myMarkerRef = useRef(null);
   const accuracyCircleRef = useRef(null);
-  const polylineRef = useRef(null);
 
   const prevSelectedUserRef = useRef(null);
 
-  const { myLocation, otherActiveUsers, mapStyle, setMapStyle, isSharing } = useTracking();
+  const { 
+    myLocation, 
+    otherActiveUsers, 
+    mapStyle, 
+    setMapStyle, 
+    isSharing,
+    currentGroup,
+    groupTrails,
+    showTrails,
+    setShowTrails,
+    focusedTrailUid,
+    setFocusedTrailUid
+  } = useTracking();
   const { currentUser } = useAuth();
   const [showLayerSelector, setShowLayerSelector] = useState(false);
 
@@ -79,8 +103,10 @@ export default function MapView({ selectedUserId, onSelectUser, lang = 'km' }) {
         attribution: initialCfg.attribution
       }).addTo(map);
 
-      markersGroupRef.current = L.layerGroup().addTo(map);
+      // Order of layers: Trails -> Lines -> Markers (Markers on top)
+      trailsGroupRef.current = L.layerGroup().addTo(map);
       linesGroupRef.current = L.layerGroup().addTo(map);
+      markersGroupRef.current = L.layerGroup().addTo(map);
 
       mapInstanceRef.current = map;
     }
@@ -147,7 +173,6 @@ export default function MapView({ selectedUserId, onSelectUser, lang = 'km' }) {
       markersGroupRef.current.addLayer(marker);
       myMarkerRef.current = marker;
     } else {
-      // Smooth position update
       myMarkerRef.current.setLatLng([myLocation.lat, myLocation.lng]);
     }
 
@@ -299,14 +324,147 @@ export default function MapView({ selectedUserId, onSelectUser, lang = 'km' }) {
 
   }, [otherActiveUsers, selectedUserId, lang, myLocation?.lat, myLocation?.lng, onSelectUser]);
 
-  // 3. Center on Selected User: ONLY when selectedUserId changes (NEVER spasm or fight max zoom!)
+  // 3. Render Group Movement Trails (ដានផ្លូវធ្វើដំណើរ / Breadcrumbs)
+  useEffect(() => {
+    if (!mapInstanceRef.current || !trailsGroupRef.current) return;
+    const trailsGroup = trailsGroupRef.current;
+    trailsGroup.clearLayers();
+
+    if (!showTrails || !currentGroup) return;
+
+    const trailEntries = Object.entries(groupTrails || {});
+    if (trailEntries.length === 0) return;
+
+    let focusedLineToFit = null;
+
+    trailEntries.forEach(([uid, points], idx) => {
+      if (!Array.isArray(points) || points.length === 0) return;
+
+      // Determine distinct color
+      let color = TRAIL_COLORS[0];
+      if (uid === currentUser?.uid) {
+        color = TRAIL_COLORS[0]; // Cyan for self
+      } else if (currentGroup?.type === 'duo' || currentGroup?.groupId?.startsWith('DUO-')) {
+        color = TRAIL_COLORS[1]; // Pink for duo partner
+      } else {
+        const memberUids = Object.keys(currentGroup?.members || {});
+        const mIdx = memberUids.indexOf(uid);
+        const paletteIdx = mIdx >= 0 ? ((mIdx + 1) % (TRAIL_COLORS.length - 1)) + 1 : ((idx + 1) % (TRAIL_COLORS.length - 1)) + 1;
+        color = TRAIL_COLORS[paletteIdx];
+      }
+
+      // Member info
+      const memberInfo = currentGroup?.members?.[uid] || otherActiveUsers.find(u => u.uid === uid) || (uid === currentUser?.uid ? currentUser : null);
+      const displayName = memberInfo?.displayName || 'Member';
+      const avatar = memberInfo?.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${uid}`;
+      const isFocused = focusedTrailUid === uid;
+
+      // Coordinates array
+      const latLngs = points.map(p => [p.lat, p.lng]);
+
+      // Connect to live location if available and slightly moved
+      const liveUser = uid === currentUser?.uid ? myLocation : otherActiveUsers.find(u => u.uid === uid)?.location;
+      if (liveUser?.lat && latLngs.length > 0) {
+        const last = latLngs[latLngs.length - 1];
+        if (Math.abs(last[0] - liveUser.lat) > 0.00003 || Math.abs(last[1] - liveUser.lng) > 0.00003) {
+          latLngs.push([liveUser.lat, liveUser.lng]);
+        }
+      }
+
+      const totalDist = calculateTrailDistanceKm(points);
+
+      // 1. Start Marker (ចំណុចចាប់ផ្តើម)
+      if (latLngs.length > 0) {
+        const startIcon = L.divIcon({
+          className: 'custom-start-marker',
+          iconSize: [26, 26],
+          iconAnchor: [13, 13],
+          html: `
+            <div class="relative flex items-center justify-center w-6 h-6 cursor-pointer" title="${displayName} - ${lang === 'km' ? 'ចំណុចចាប់ផ្តើម' : 'Start Point'}">
+              <span class="absolute w-full h-full rounded-full bg-emerald-400 opacity-60 animate-ping"></span>
+              <div class="w-5 h-5 rounded-full bg-emerald-500 border-2 border-white shadow-md flex items-center justify-center text-[9px] font-black text-white">
+                S
+              </div>
+            </div>
+          `
+        });
+        const startMarker = L.marker(latLngs[0], { icon: startIcon, zIndexOffset: 400 });
+        startMarker.bindTooltip(`📍 ${displayName} (${lang === 'km' ? 'ចំណុចចាប់ផ្តើម' : 'Start Point'} • ${timeAgo(points[0].timestamp, lang)})`, {
+          direction: 'top',
+          offset: [0, -8]
+        });
+        trailsGroup.addLayer(startMarker);
+      }
+
+      // 2. Draw Dual-Layer Polyline if >= 2 points
+      if (latLngs.length >= 2) {
+        // Glow layer
+        const glow = L.polyline(latLngs, {
+          color: color.glow,
+          weight: isFocused ? 9 : 6,
+          opacity: isFocused ? 0.45 : 0.28,
+          lineCap: 'round',
+          lineJoin: 'round'
+        });
+        trailsGroup.addLayer(glow);
+
+        // Core crisp line
+        const coreLine = L.polyline(latLngs, {
+          color: color.stroke,
+          weight: isFocused ? 4.5 : 3.5,
+          opacity: 0.95,
+          lineCap: 'round',
+          lineJoin: 'round'
+        });
+
+        coreLine.bindPopup(`
+          <div class="p-3 text-slate-800 font-sans min-w-[210px]">
+            <div class="flex items-center gap-2.5 mb-2 pb-2 border-b border-slate-200">
+              <img src="${avatar}" class="w-8 h-8 rounded-xl border border-slate-300 object-cover" />
+              <div>
+                <p class="font-bold text-sm text-slate-900 leading-tight">${displayName}</p>
+                <span class="text-[10px] text-cyan-600 font-bold">● ${lang === 'km' ? 'ដានផ្លូវធ្វើដំណើរ' : 'Movement Route'}</span>
+              </div>
+            </div>
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-2.5 space-y-1.5 text-xs">
+              <div class="flex justify-between items-center">
+                <span class="text-slate-500">${lang === 'km' ? 'បានធ្វើដំណើរ' : 'Traveled'}:</span>
+                <span class="font-bold text-cyan-700 font-mono">${formatDistance(totalDist)}</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-slate-500">${lang === 'km' ? 'ចំនួនចំណុចដាន' : 'Waypoints'}:</span>
+                <span class="font-bold text-slate-700 font-mono">${points.length} ចំណុច</span>
+              </div>
+              <div class="flex justify-between items-center text-[10px] text-slate-500 pt-1 border-t border-slate-200">
+                <span>${lang === 'km' ? 'ចាប់ផ្តើម' : 'Started'}:</span>
+                <span>${timeAgo(points[0].timestamp, lang)}</span>
+              </div>
+            </div>
+          </div>
+        `);
+
+        trailsGroup.addLayer(coreLine);
+
+        if (isFocused) {
+          focusedLineToFit = coreLine;
+        }
+      }
+    });
+
+    if (focusedLineToFit && mapInstanceRef.current) {
+      try {
+        mapInstanceRef.current.fitBounds(focusedLineToFit.getBounds().pad(0.18), { animate: true, duration: 0.9 });
+      } catch (e) {}
+    }
+  }, [groupTrails, showTrails, currentGroup, focusedTrailUid, lang, currentUser?.uid, otherActiveUsers, myLocation]);
+
+  // 4. Center on Selected User: ONLY when selectedUserId changes
   useEffect(() => {
     if (selectedUserId && selectedUserId !== prevSelectedUserRef.current && mapInstanceRef.current) {
       prevSelectedUserRef.current = selectedUserId;
       const selected = otherActiveUsers.find(u => u.uid === selectedUserId);
       if (selected?.location?.lat) {
         const currentZoom = mapInstanceRef.current.getZoom();
-        // PRESERVE user's max zoom if they are zoomed in close!
         const targetZoom = Math.max(currentZoom, 16);
         mapInstanceRef.current.flyTo(
           [selected.location.lat, selected.location.lng],
@@ -319,6 +477,8 @@ export default function MapView({ selectedUserId, onSelectUser, lang = 'km' }) {
     }
   }, [selectedUserId, otherActiveUsers]);
 
+  const totalPoints = Object.values(groupTrails || {}).reduce((acc, pts) => acc + (pts?.length || 0), 0);
+
   return (
     <div className="relative w-full h-full overflow-hidden bg-slate-950">
       {/* Leaflet map container */}
@@ -328,7 +488,7 @@ export default function MapView({ selectedUserId, onSelectUser, lang = 'km' }) {
       <button
         onClick={centerOnMe}
         title={lang === 'km' ? 'កំណត់ទីតាំងខ្ញុំ' : 'My Location'}
-        className="absolute bottom-5 sm:bottom-6 left-3 sm:left-4 z-20 mb-[env(safe-area-inset-bottom,0px)] flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:px-3.5 sm:py-2.5 rounded-2xl bg-slate-900/95 text-cyan-400 border border-cyan-500/40 shadow-2xl backdrop-blur-md hover:bg-slate-800 transition active:scale-95 group font-bold text-xs"
+        className="absolute bottom-5 sm:bottom-6 left-3 sm:left-4 z-20 mb-[env(safe-area-inset-bottom,0px)] flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:px-3.5 sm:py-2.5 rounded-2xl bg-slate-900/95 text-cyan-400 border border-cyan-500/40 shadow-2xl backdrop-blur-md hover:bg-slate-800 transition active:scale-95 group font-bold text-xs cursor-pointer"
       >
         <Navigation className="w-5 h-5 text-cyan-400 group-hover:scale-110 transition" />
         <span className="hidden sm:inline sm:ml-2">{lang === 'km' ? 'ទីតាំងខ្ញុំ' : 'My Location'}</span>
@@ -339,25 +499,26 @@ export default function MapView({ selectedUserId, onSelectUser, lang = 'km' }) {
         <button
           onClick={handleZoomIn}
           title="Zoom In"
-          className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-slate-900/95 text-slate-100 hover:text-cyan-400 border border-slate-700/80 shadow-2xl backdrop-blur-md flex items-center justify-center transition active:scale-90 hover:border-cyan-500/50"
+          className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-slate-900/95 text-slate-100 hover:text-cyan-400 border border-slate-700/80 shadow-2xl backdrop-blur-md flex items-center justify-center transition active:scale-90 hover:border-cyan-500/50 cursor-pointer"
         >
           <Plus className="w-5 h-5" />
         </button>
         <button
           onClick={handleZoomOut}
           title="Zoom Out"
-          className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-slate-900/95 text-slate-100 hover:text-cyan-400 border border-slate-700/80 shadow-2xl backdrop-blur-md flex items-center justify-center transition active:scale-90 hover:border-cyan-500/50"
+          className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-slate-900/95 text-slate-100 hover:text-cyan-400 border border-slate-700/80 shadow-2xl backdrop-blur-md flex items-center justify-center transition active:scale-90 hover:border-cyan-500/50 cursor-pointer"
         >
           <Minus className="w-5 h-5" />
         </button>
       </div>
 
-      {/* Floating Map Layer Selector Button & Dropdown (Top Left) */}
-      <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-20">
+      {/* Floating Map Layer Selector & Trail Toggle (Top Left) */}
+      <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-20 flex items-center gap-2">
+        {/* Layer Selector */}
         <div className="relative">
           <button
             onClick={() => setShowLayerSelector(!showLayerSelector)}
-            className="flex items-center justify-center w-10 h-10 sm:w-auto sm:h-auto sm:px-3 sm:py-2 rounded-2xl bg-slate-900/95 text-slate-200 border border-slate-700/80 shadow-2xl backdrop-blur-md hover:border-cyan-500/50 hover:text-white transition active:scale-95 text-xs font-bold"
+            className="flex items-center justify-center w-10 h-10 sm:w-auto sm:h-auto sm:px-3 sm:py-2 rounded-2xl bg-slate-900/95 text-slate-200 border border-slate-700/80 shadow-2xl backdrop-blur-md hover:border-cyan-500/50 hover:text-white transition active:scale-95 text-xs font-bold cursor-pointer"
           >
             <Layers className="w-4 h-4 text-cyan-400" />
             <span className="hidden sm:inline sm:ml-2">{MAP_PROVIDERS[mapStyle]?.name || 'Map Layer'}</span>
@@ -375,7 +536,7 @@ export default function MapView({ selectedUserId, onSelectUser, lang = 'km' }) {
                     setMapStyle(key);
                     setShowLayerSelector(false);
                   }}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
                     mapStyle === key
                       ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
                       : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
@@ -388,6 +549,29 @@ export default function MapView({ selectedUserId, onSelectUser, lang = 'km' }) {
             </div>
           )}
         </div>
+
+        {/* Movement Trails Toggle Button (Visible when in a Group) */}
+        {currentGroup && (
+          <button
+            onClick={() => setShowTrails(!showTrails)}
+            title={showTrails ? (lang === 'km' ? 'លាក់ដានផ្លូវ' : 'Hide Trails') : (lang === 'km' ? 'បង្ហាញដានផ្លូវ' : 'Show Trails')}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-bold shadow-2xl backdrop-blur-md transition active:scale-95 border cursor-pointer ${
+              showTrails
+                ? 'bg-gradient-to-r from-cyan-950/90 to-blue-950/90 text-cyan-300 border-cyan-400/60 shadow-cyan-500/25 ring-1 ring-cyan-400/30'
+                : 'bg-slate-900/95 text-slate-400 border-slate-700/80 hover:text-white'
+            }`}
+          >
+            <Route className="w-4 h-4 text-cyan-400" />
+            <span className="hidden sm:inline">
+              {lang === 'km' ? 'ដានផ្លូវ' : 'Trails'}
+            </span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono ${
+              showTrails ? 'bg-cyan-400 text-slate-950 font-black' : 'bg-slate-800 text-slate-400'
+            }`}>
+              {showTrails ? (totalPoints > 0 ? `${totalPoints} ចំណុច` : (lang === 'km' ? 'បើក' : 'ON')) : (lang === 'km' ? 'បិទ' : 'OFF')}
+            </span>
+          </button>
+        )}
       </div>
     </div>
   );

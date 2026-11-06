@@ -19,6 +19,23 @@ export function setupLocationSockets(io) {
         const cleanId = groupId.toUpperCase().trim();
         socket.join(`group_${cleanId}`);
         io.to(`group_${cleanId}`).emit('group_member_joined', { groupId: cleanId, user });
+
+        // Immediately sync existing historical movement trails to the newly joined member!
+        try {
+          const trails = await db.getGroupTrails(cleanId);
+          socket.emit('group_trails_sync', { groupId: cleanId, trails });
+        } catch (e) {
+          console.warn("Could not sync trails on join_group:", e);
+        }
+      }
+    });
+
+    // Request group trails manually
+    socket.on('get_group_trails', async ({ groupId }) => {
+      if (groupId) {
+        const cleanId = groupId.toUpperCase().trim();
+        const trails = await db.getGroupTrails(cleanId);
+        socket.emit('group_trails_sync', { groupId: cleanId, trails });
       }
     });
 
@@ -43,6 +60,21 @@ export function setupLocationSockets(io) {
 
         // Persist to DB
         await db.updateUserLocation(uid, location, isSharing);
+
+        // If user is in a group and is actively sharing, record movement trail point!
+        let recordedPoint = null;
+        if (groupId && isSharing) {
+          const cleanGroupId = groupId.toUpperCase().trim();
+          recordedPoint = await db.recordGroupTrailPoint(cleanGroupId, uid, location);
+          if (recordedPoint) {
+            // Real-time trail point broadcast to all members in this group
+            io.to(`group_${cleanGroupId}`).emit('group_trail_point', {
+              groupId: cleanGroupId,
+              uid,
+              point: recordedPoint
+            });
+          }
+        }
 
         const broadcastData = {
           uid,

@@ -7,6 +7,7 @@ import {
   createGroupHandler,
   joinGroupHandler,
   getGroupHandler,
+  getGroupTrailsHandler,
   leaveGroupHandler
 } from '../controllers/locationController.js';
 import { authenticateToken } from '../middleware/authMiddleware.js';
@@ -16,6 +17,7 @@ const router = express.Router();
 // Public endpoints
 router.get('/active-users', getActiveUsers);
 router.get('/group/:groupId', getGroupHandler);
+router.get('/group/:groupId/trails', getGroupTrailsHandler);
 
 // Protected endpoints
 router.post('/update', authenticateToken, updateLocation);

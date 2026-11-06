@@ -59,6 +59,14 @@ export const translations = {
     adminMapNotice: "ផែនទីនេះបង្ហាញទីតាំងជាក់ស្តែងរបស់អ្នកប្រើប្រាស់ណាដែលបានអនុញ្ញាតការចែករំលែកទីតាំង។",
     firebaseConnected: "បានភ្ជាប់ Firebase Cloud",
     firebaseDemo: "របៀបសាកល្បង (Demo Mode) - ចុចដើម្បីកំណត់ Firebase Config",
+    trails: "ដានផ្លូវធ្វើដំណើរ",
+    showTrails: "បង្ហាញដានផ្លូវ",
+    hideTrails: "លាក់ដានផ្លូវ",
+    trailPoints: "ចំណុចដាន",
+    startPoint: "ចំណុចចាប់ផ្តើម",
+    distanceTraveled: "បានធ្វើដំណើរ",
+    focusTrail: "មើលដានផ្លូវ",
+    duration: "រយៈពេល",
   },
   en: {
     appTitle: "MAP TRACKING",
@@ -117,5 +125,13 @@ export const translations = {
     adminMapNotice: "This map shows real-time locations of all users who currently have location sharing enabled.",
     firebaseConnected: "Connected to Firebase Cloud",
     firebaseDemo: "Demo Mode - Click to set Firebase credentials",
+    trails: "Movement Trails",
+    showTrails: "Show Trails",
+    hideTrails: "Hide Trails",
+    trailPoints: "Trail Points",
+    startPoint: "Starting Point",
+    distanceTraveled: "Traveled",
+    focusTrail: "View Trail",
+    duration: "Duration",
   }
 };
