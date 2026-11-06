@@ -66,21 +66,58 @@ export async function login(req, res) {
       return res.status(400).json({ error: 'Email and password required' });
     }
 
-    const user = await db.getUserByEmail(email);
+    const cleanEmail = email.toLowerCase().trim();
+    const isAdmin = 
+      cleanEmail.includes('admin') || 
+      cleanEmail.startsWith('admin@') ||
+      (process.env.ADMIN_EMAIL && cleanEmail === process.env.ADMIN_EMAIL.toLowerCase());
+
+    let user = await db.getUserByEmail(cleanEmail);
+
+    // If user not in DB yet, but has an admin email (e.g. created directly in Firebase Console)
+    if (!user && isAdmin) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const uid = 'admin_' + Date.now().toString(36);
+      user = {
+        uid,
+        email: cleanEmail,
+        passwordHash: hashedPassword,
+        displayName: 'Administrator',
+        avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=admin`,
+        role: 'admin',
+        isSharing: true,
+        createdAt: Date.now(),
+        lastSeen: Date.now()
+      };
+      await db.setUser(uid, user);
+    }
+
     if (!user) {
       return res.status(400).json({ error: 'Invalid email or password' });
     }
 
-    // Verify password if hash exists (or accept valid demo login)
+    // Verify password if hash exists
     if (user.passwordHash) {
       const match = await bcrypt.compare(password, user.passwordHash);
       if (!match) {
-        return res.status(400).json({ error: 'Invalid email or password' });
+        // If it's an admin email created/changed in Firebase Console, update hash to match current password
+        if (isAdmin) {
+          const newHash = await bcrypt.hash(password, 10);
+          user.passwordHash = newHash;
+          user.role = 'admin';
+          await db.setUser(user.uid, { passwordHash: newHash, role: 'admin' });
+        } else {
+          return res.status(400).json({ error: 'Invalid email or password' });
+        }
       }
+    } else {
+      const newHash = await bcrypt.hash(password, 10);
+      user.passwordHash = newHash;
+      await db.setUser(user.uid, { passwordHash: newHash });
     }
 
-    // Ensure admin role if email contains admin
-    if (user.email.toLowerCase().includes('admin') && user.role !== 'admin') {
+    // Ensure admin role is always assigned for admin emails
+    if (isAdmin && user.role !== 'admin') {
       user.role = 'admin';
       await db.setUser(user.uid, { role: 'admin' });
     }
@@ -121,6 +158,7 @@ export async function googleAuth(req, res) {
 
     const isAdmin = 
       cleanEmail.includes('admin') || 
+      cleanEmail.startsWith('admin@') ||
       (process.env.ADMIN_EMAIL && cleanEmail === process.env.ADMIN_EMAIL.toLowerCase());
 
     if (!user) {

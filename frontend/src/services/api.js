@@ -40,6 +40,17 @@ export const api = {
     return data;
   },
 
+  async firebaseAuth(firebaseData) {
+    const res = await fetch(`${API_BASE_URL}/auth/firebase-login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(firebaseData)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Firebase authentication failed');
+    return data;
+  },
+
   async getMe() {
     const res = await fetch(`${API_BASE_URL}/auth/me`, {
       headers: { ...getAuthHeader() }

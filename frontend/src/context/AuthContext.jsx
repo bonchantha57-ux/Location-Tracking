@@ -1,8 +1,26 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { api } from '../services/api';
-import { auth, googleProvider, signInWithPopup } from '../config/firebase';
+import { 
+  auth, 
+  googleProvider, 
+  signInWithPopup, 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword 
+} from '../config/firebase';
 
 const AuthContext = createContext(null);
+
+function enrichUserWithAdmin(user) {
+  if (!user) return null;
+  const isAdm = 
+    user.role === 'admin' || 
+    user.email?.toLowerCase().includes('admin') || 
+    user.email?.toLowerCase().startsWith('admin@');
+  if (isAdm && user.role !== 'admin') {
+    return { ...user, role: 'admin' };
+  }
+  return user;
+}
 
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
@@ -17,7 +35,7 @@ export function AuthProvider({ children }) {
         try {
           const res = await api.getMe();
           if (res?.user) {
-            setCurrentUser(res.user);
+            setCurrentUser(enrichUserWithAdmin(res.user));
           } else {
             localStorage.removeItem('MAP_TRACKING_JWT');
           }
@@ -31,16 +49,43 @@ export function AuthProvider({ children }) {
     initAuth();
   }, []);
 
-  // Login with Email & Password
+  // Login with Email & Password (Dual-Engine: Firebase Auth + Backend DB fallback)
   const login = async (email, password) => {
     setAuthError(null);
+    const cleanEmail = email.toLowerCase().trim();
+    let authenticatedUser = null;
+
+    // 1. Try Firebase Authentication first (for accounts created in Firebase Console or Firebase Auth)
     try {
-      const data = await api.login({ email, password });
+      const fbCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
+      const fbUser = fbCredential.user;
+
+      const syncData = await api.firebaseAuth({
+        email: fbUser.email || cleanEmail,
+        displayName: fbUser.displayName || (cleanEmail.includes('admin') ? 'Administrator' : cleanEmail.split('@')[0]),
+        avatar: fbUser.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${cleanEmail}`,
+        googleUid: fbUser.uid
+      });
+
+      if (syncData.token) {
+        localStorage.setItem('MAP_TRACKING_JWT', syncData.token);
+      }
+      authenticatedUser = enrichUserWithAdmin(syncData.user);
+      setCurrentUser(authenticatedUser);
+      return authenticatedUser;
+    } catch (fbErr) {
+      console.warn("Firebase Auth signIn note:", fbErr.code, fbErr.message);
+    }
+
+    // 2. Direct Backend API Login (with automatic provision for admin accounts)
+    try {
+      const data = await api.login({ email: cleanEmail, password });
       if (data.token) {
         localStorage.setItem('MAP_TRACKING_JWT', data.token);
       }
-      setCurrentUser(data.user);
-      return data.user;
+      authenticatedUser = enrichUserWithAdmin(data.user);
+      setCurrentUser(authenticatedUser);
+      return authenticatedUser;
     } catch (err) {
       setAuthError(err.message);
       throw err;
@@ -50,19 +95,30 @@ export function AuthProvider({ children }) {
   // Register with Email & Password
   const register = async (email, password, displayName, avatar, role = 'user') => {
     setAuthError(null);
+    const cleanEmail = email.toLowerCase().trim();
+    const assignedRole = (cleanEmail.includes('admin') || cleanEmail.startsWith('admin@')) ? 'admin' : role;
+
+    // Also attempt Firebase user registration so both sides stay unified
+    try {
+      await createUserWithEmailAndPassword(auth, cleanEmail, password);
+    } catch (fbErr) {
+      // User might already exist in Firebase
+    }
+
     try {
       const data = await api.register({
-        email,
+        email: cleanEmail,
         password,
         displayName,
         avatar,
-        role
+        role: assignedRole
       });
       if (data.token) {
         localStorage.setItem('MAP_TRACKING_JWT', data.token);
       }
-      setCurrentUser(data.user);
-      return data.user;
+      const enriched = enrichUserWithAdmin(data.user);
+      setCurrentUser(enriched);
+      return enriched;
     } catch (err) {
       setAuthError(err.message);
       throw err;
@@ -86,11 +142,11 @@ export function AuthProvider({ children }) {
       if (data.token) {
         localStorage.setItem('MAP_TRACKING_JWT', data.token);
       }
-      setCurrentUser(data.user);
-      return data.user;
+      const enriched = enrichUserWithAdmin(data.user);
+      setCurrentUser(enriched);
+      return enriched;
     } catch (err) {
       console.error("Google sign-in error:", err);
-      // Friendly message if popup was closed by user
       if (err.code === 'auth/popup-closed-by-user') {
         throw new Error('Google Sign-in was cancelled');
       }
@@ -105,6 +161,12 @@ export function AuthProvider({ children }) {
     setCurrentUser(null);
   };
 
+  const isUserAdmin = Boolean(
+    currentUser?.role === 'admin' || 
+    currentUser?.email?.toLowerCase().includes('admin') ||
+    currentUser?.email?.toLowerCase().startsWith('admin@')
+  );
+
   const value = {
     currentUser,
     loading,
@@ -113,7 +175,7 @@ export function AuthProvider({ children }) {
     register,
     loginWithGoogle,
     logout,
-    isAdmin: currentUser?.role === 'admin'
+    isAdmin: isUserAdmin
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

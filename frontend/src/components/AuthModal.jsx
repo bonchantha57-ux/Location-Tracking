@@ -56,8 +56,13 @@ export default function AuthModal({ isOpen, onClose, onAdminLoggedIn, lang = 'km
 
       onClose();
 
+      const isUserAdmin = 
+        user?.role === 'admin' || 
+        user?.email?.toLowerCase().includes('admin') || 
+        user?.email?.toLowerCase().startsWith('admin@');
+
       // If this is an Admin account, immediately open Admin Dashboard!
-      if (user?.role === 'admin' && onAdminLoggedIn) {
+      if (isUserAdmin && onAdminLoggedIn) {
         onAdminLoggedIn();
       }
     } catch (err) {
@@ -75,8 +80,13 @@ export default function AuthModal({ isOpen, onClose, onAdminLoggedIn, lang = 'km
       const user = await loginWithGoogle();
       onClose();
 
+      const isUserAdmin = 
+        user?.role === 'admin' || 
+        user?.email?.toLowerCase().includes('admin') || 
+        user?.email?.toLowerCase().startsWith('admin@');
+
       // If this Google account is an Admin, open Admin Dashboard!
-      if (user?.role === 'admin' && onAdminLoggedIn) {
+      if (isUserAdmin && onAdminLoggedIn) {
         onAdminLoggedIn();
       }
     } catch (err) {
@@ -247,9 +257,16 @@ export default function AuthModal({ isOpen, onClose, onAdminLoggedIn, lang = 'km
 
             {/* Email */}
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">
-                {t.email}
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-300">
+                  {t.email}
+                </label>
+                {(email.toLowerCase().includes('admin') || email.toLowerCase().startsWith('admin@')) && (
+                  <span className="text-[10px] font-bold text-amber-400 animate-pulse flex items-center gap-1">
+                    👑 {lang === 'km' ? 'ចូលជា Admin ស្វ័យប្រវត្ត' : 'Admin Access Detected'}
+                  </span>
+                )}
+              </div>
               <div className="relative">
                 <Mail className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
                 <input
@@ -257,8 +274,12 @@ export default function AuthModal({ isOpen, onClose, onAdminLoggedIn, lang = 'km
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your.email@gmail.com"
-                  className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-slate-950 border border-slate-700/80 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-400 transition"
+                  placeholder="admin@maptracking.com"
+                  className={`w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-slate-950 border rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none transition ${
+                    (email.toLowerCase().includes('admin') || email.toLowerCase().startsWith('admin@'))
+                      ? 'border-amber-500/80 focus:border-amber-400 ring-1 ring-amber-500/30'
+                      : 'border-slate-700/80 focus:border-cyan-400'
+                  }`}
                 />
               </div>
             </div>

@@ -3,6 +3,8 @@ import {
   getAuth, 
   GoogleAuthProvider, 
   signInWithPopup, 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   signOut 
 } from 'firebase/auth';
 
@@ -23,4 +25,12 @@ googleProvider.setCustomParameters({
   prompt: 'select_account'
 });
 
-export { app, auth, googleProvider, signInWithPopup, signOut };
+export { 
+  app, 
+  auth, 
+  googleProvider, 
+  signInWithPopup, 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut 
+};
