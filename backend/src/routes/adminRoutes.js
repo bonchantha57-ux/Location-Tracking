@@ -2,6 +2,9 @@ import express from 'express';
 import { 
   getAdminStats, 
   getAdminUsersList, 
+  createAdminUser,
+  updateAdminUser,
+  deleteAdminUser,
   toggleUserSharingPermission 
 } from '../controllers/adminController.js';
 import { authenticateToken, requireAdmin } from '../middleware/authMiddleware.js';
@@ -13,6 +16,9 @@ router.use(requireAdmin);
 
 router.get('/stats', getAdminStats);
 router.get('/users', getAdminUsersList);
+router.post('/users', createAdminUser);
+router.put('/users/:targetUid', updateAdminUser);
+router.delete('/users/:targetUid', deleteAdminUser);
 router.patch('/users/:targetUid/sharing', toggleUserSharingPermission);
 
 export default router;

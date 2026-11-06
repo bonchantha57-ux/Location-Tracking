@@ -1,9 +1,28 @@
 import { db } from '../config/firebaseAdmin.js';
 
+// Global Map of active online sockets (socket.id -> uid)
+export const activeOnlineSockets = new Map();
+
+export function getOnlineUids() {
+  return new Set(Array.from(activeOnlineSockets.values()).filter(Boolean));
+}
+
 export function setupLocationSockets(io) {
   io.on('connection', (socket) => {
+    // Identify client user
+    socket.on('identify', ({ uid }) => {
+      if (uid) {
+        socket.userUid = String(uid);
+        activeOnlineSockets.set(socket.id, String(uid));
+      }
+    });
+
     // Join room / Share link
     socket.on('join_room', async ({ roomId, user }) => {
+      if (user?.uid) {
+        socket.userUid = String(user.uid);
+        activeOnlineSockets.set(socket.id, String(user.uid));
+      }
       if (roomId) {
         socket.join(roomId);
         if (user) {
@@ -15,6 +34,10 @@ export function setupLocationSockets(io) {
 
     // Join Group by ID
     socket.on('join_group', async ({ groupId, user }) => {
+      if (user?.uid) {
+        socket.userUid = String(user.uid);
+        activeOnlineSockets.set(socket.id, String(user.uid));
+      }
       if (groupId && user) {
         const cleanId = groupId.toUpperCase().trim();
         socket.join(`group_${cleanId}`);
@@ -57,6 +80,9 @@ export function setupLocationSockets(io) {
       try {
         const { uid, location, isSharing, groupId } = payload;
         if (!uid || !location) return;
+
+        socket.userUid = String(uid);
+        activeOnlineSockets.set(socket.id, String(uid));
 
         // Persist to DB
         await db.updateUserLocation(uid, location, isSharing);
@@ -108,6 +134,8 @@ export function setupLocationSockets(io) {
       io.emit('user_sharing_toggled', { uid, isSharing });
     });
 
-    socket.on('disconnect', () => {});
+    socket.on('disconnect', () => {
+      activeOnlineSockets.delete(socket.id);
+    });
   });
 }

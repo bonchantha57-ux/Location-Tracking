@@ -67,6 +67,12 @@ export const translations = {
     distanceTraveled: "បានធ្វើដំណើរ",
     focusTrail: "មើលដានផ្លូវ",
     duration: "រយៈពេល",
+    onlineUsers: "អ្នកកំពុង Online",
+    createUser: "បង្កើតគណនីថ្មី",
+    editUser: "កែប្រែព័ត៌មាន",
+    deleteUser: "លុបគណនី",
+    locateUser: "មើលទីតាំងលើផែនទី",
+    confirmDelete: "តើអ្នកពិតជាចង់លុបគណនីនេះមែនទេ?",
   },
   en: {
     appTitle: "MAP TRACKING",
@@ -133,5 +139,11 @@ export const translations = {
     distanceTraveled: "Traveled",
     focusTrail: "View Trail",
     duration: "Duration",
+    onlineUsers: "Online Users",
+    createUser: "Create New User",
+    editUser: "Edit User",
+    deleteUser: "Delete User",
+    locateUser: "Locate on Map",
+    confirmDelete: "Are you sure you want to delete this account?",
   }
 };

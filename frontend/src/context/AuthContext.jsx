@@ -75,6 +75,9 @@ export function AuthProvider({ children }) {
       return authenticatedUser;
     } catch (fbErr) {
       console.warn("Firebase Auth signIn note:", fbErr.code, fbErr.message);
+      if (fbErr.code === 'auth/wrong-password' || fbErr.code === 'auth/invalid-credential') {
+        throw new Error('ពាក្យសម្ងាត់មិនត្រឹមត្រូវឡើយ (Incorrect password)');
+      }
     }
 
     // 2. Direct Backend API Login (with automatic provision for admin accounts)

@@ -197,5 +197,43 @@ export const api = {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to update user sharing');
     return data.user;
+  },
+
+  async createAdminUser(userData) {
+    const res = await fetch(`${API_BASE_URL}/admin/users`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader()
+      },
+      body: JSON.stringify(userData)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to create user');
+    return data;
+  },
+
+  async updateAdminUser(targetUid, updates) {
+    const res = await fetch(`${API_BASE_URL}/admin/users/${targetUid}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader()
+      },
+      body: JSON.stringify(updates)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to update user');
+    return data;
+  },
+
+  async deleteAdminUser(targetUid) {
+    const res = await fetch(`${API_BASE_URL}/admin/users/${targetUid}`, {
+      method: 'DELETE',
+      headers: { ...getAuthHeader() }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to delete user');
+    return data;
   }
 };

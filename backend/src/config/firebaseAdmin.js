@@ -5,6 +5,7 @@ import {
   setDoc, 
   getDoc, 
   getDocs, 
+  deleteDoc, 
   collection, 
   query, 
   where 
@@ -178,7 +179,61 @@ export const db = {
 
   async getAllUsers() {
     const data = readLocalDb();
-    return Object.values(data.users || {});
+    const localUsersMap = { ...(data.users || {}) };
+
+    // Fetch directly from Cloud Firestore to guarantee complete and live database synchronization
+    if (isConnected && firestoreDb) {
+      try {
+        const snap = await Promise.race([
+          getDocs(collection(firestoreDb, 'users')),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
+        ]);
+        if (snap && !snap.empty) {
+          snap.forEach(docSnap => {
+            const u = docSnap.data();
+            if (u && u.uid) {
+              localUsersMap[u.uid] = { ...(localUsersMap[u.uid] || {}), ...u };
+            }
+          });
+          data.users = localUsersMap;
+          writeLocalDb(data);
+        }
+      } catch (err) {
+        console.warn("Firestore getAllUsers sync note:", err.message);
+      }
+    }
+
+    return Object.values(localUsersMap);
+  },
+
+  async deleteUser(uid) {
+    if (!uid) return false;
+    const cleanUid = String(uid);
+
+    // 1. Delete from local DB
+    const data = readLocalDb();
+    if (data.users && data.users[cleanUid]) {
+      delete data.users[cleanUid];
+      writeLocalDb(data);
+    }
+
+    // 2. Delete from Cloud Firestore
+    if (isConnected && firestoreDb) {
+      try {
+        const userRef = doc(firestoreDb, 'users', cleanUid);
+        syncCloud(deleteDoc(userRef));
+      } catch (e) {}
+    }
+
+    // 3. Delete from Realtime DB
+    if (isConnected && realtimeDb) {
+      try {
+        const locRef = ref(realtimeDb, `locations/${cleanUid}`);
+        await set(locRef, null);
+      } catch (e) {}
+    }
+
+    return true;
   },
 
   // Update user's live location in Firestore and Realtime Database

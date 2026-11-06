@@ -96,24 +96,14 @@ export async function login(req, res) {
       return res.status(400).json({ error: 'Invalid email or password' });
     }
 
-    // Verify password if hash exists
+    // Strict Password Verification: Password MUST be correct!
     if (user.passwordHash) {
       const match = await bcrypt.compare(password, user.passwordHash);
       if (!match) {
-        // If it's an admin email created/changed in Firebase Console, update hash to match current password
-        if (isAdmin) {
-          const newHash = await bcrypt.hash(password, 10);
-          user.passwordHash = newHash;
-          user.role = 'admin';
-          await db.setUser(user.uid, { passwordHash: newHash, role: 'admin' });
-        } else {
-          return res.status(400).json({ error: 'Invalid email or password' });
-        }
+        return res.status(401).json({ error: 'ពាក្យសម្ងាត់មិនត្រឹមត្រូវឡើយ (Incorrect password)' });
       }
     } else {
-      const newHash = await bcrypt.hash(password, 10);
-      user.passwordHash = newHash;
-      await db.setUser(user.uid, { passwordHash: newHash });
+      return res.status(401).json({ error: 'គណនីនេះមិនទាន់មានពាក្យសម្ងាត់ឡើយ សូមចុះឈ្មោះជាមុនសិន' });
     }
 
     // Ensure admin role is always assigned for admin emails
