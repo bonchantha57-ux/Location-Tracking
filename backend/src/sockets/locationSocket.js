@@ -112,15 +112,13 @@ export function setupLocationSockets(io) {
           groupId
         };
 
-        // Broadcast to all clients on map
-        io.emit('user_location_update', broadcastData);
-
-        // If in a specific group, also emit to group room
-        if (groupId) {
+        // 1. If user is in a group and is sharing: emit ONLY to members of that specific group!
+        if (groupId && isSharing) {
           io.to(`group_${groupId.toUpperCase()}`).emit('group_location_update', broadcastData);
         }
 
-        // Also broadcast to admin channel
+        // 2. Admin channel receives all location updates (God-view)
+        io.to('admin_channel').emit('user_location_update', broadcastData);
         io.to('admin_channel').emit('admin_user_update', broadcastData);
       } catch (err) {
         console.error("Socket send_location error:", err);

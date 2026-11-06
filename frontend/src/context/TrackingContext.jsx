@@ -31,7 +31,7 @@ export function calculateTrailDistanceKm(trailPoints = []) {
 }
 
 export function TrackingProvider({ children }) {
-  const { currentUser } = useAuth();
+  const { currentUser, isAdmin } = useAuth();
   const [myLocation, setMyLocation] = useState(DEFAULT_COORDS);
   const [hasLocationPermission, setHasLocationPermission] = useState(false);
   const [isSharing, setIsSharing] = useState(true);
@@ -75,7 +75,7 @@ export function TrackingProvider({ children }) {
   // Fetch initial active users from Backend API
   const refreshUsers = async () => {
     try {
-      const users = await api.getActiveUsers();
+      const users = await api.getActiveUsers(currentGroup?.groupId);
       setAllUsers(users);
     } catch (e) {
       console.warn("Could not fetch active users:", e);
@@ -84,7 +84,10 @@ export function TrackingProvider({ children }) {
 
   useEffect(() => {
     refreshUsers();
-  }, []);
+    if (isAdmin) {
+      socket.emit('join_admin_feed');
+    }
+  }, [currentGroup?.groupId, isAdmin]);
 
   // Sync historical trails when currentGroup changes
   useEffect(() => {
@@ -207,6 +210,7 @@ export function TrackingProvider({ children }) {
     }
 
     socket.on('user_location_update', onLocationUpdate);
+    socket.on('group_location_update', onLocationUpdate);
     socket.on('user_sharing_toggled', onSharingToggled);
     socket.on('group_member_joined', onMemberJoinedGroup);
     socket.on('group_trails_sync', onGroupTrailsSync);
@@ -214,6 +218,7 @@ export function TrackingProvider({ children }) {
 
     return () => {
       socket.off('user_location_update', onLocationUpdate);
+      socket.off('group_location_update', onLocationUpdate);
       socket.off('user_sharing_toggled', onSharingToggled);
       socket.off('group_member_joined', onMemberJoinedGroup);
       socket.off('group_trails_sync', onGroupTrailsSync);
@@ -359,12 +364,22 @@ export function TrackingProvider({ children }) {
     }
   };
 
-  // Connected users:
-  // If in a group, only show members of that group!
-  // If not in a group, show other active users who are sharing!
-  const filteredUsers = currentGroup
-    ? allUsers.filter(u => currentGroup.members && currentGroup.members[u.uid])
-    : allUsers;
+  // Strict Visibility Rules:
+  // 1. Admin: Has God-view access to see all users actively sharing on the map.
+  // 2. Regular User in Group/Duo: Can ONLY see members of that same group who have an account and have isSharing=true!
+  // 3. Regular User NOT in a group: Cannot see any other users (stranger privacy protection).
+  let filteredUsers = [];
+  if (isAdmin) {
+    filteredUsers = allUsers;
+  } else if (currentUser && currentGroup?.members) {
+    filteredUsers = allUsers.filter(u => 
+      u.uid !== currentUser.uid &&
+      currentGroup.members[u.uid] &&
+      Boolean(u.isSharing)
+    );
+  } else {
+    filteredUsers = [];
+  }
 
   const otherActiveUsers = filteredUsers
     .filter(u => u.uid !== currentUser?.uid && u.isSharing && u.location?.lat)

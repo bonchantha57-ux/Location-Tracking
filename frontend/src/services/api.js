@@ -84,9 +84,14 @@ export const api = {
     return await res.json();
   },
 
-  async getActiveUsers() {
+  async getActiveUsers(groupId) {
     try {
-      const res = await fetch(`${API_BASE_URL}/location/active-users`);
+      const url = groupId 
+        ? `${API_BASE_URL}/location/active-users?groupId=${encodeURIComponent(groupId)}`
+        : `${API_BASE_URL}/location/active-users`;
+      const res = await fetch(url, {
+        headers: { ...getAuthHeader() }
+      });
       if (!res.ok) return [];
       const data = await res.json();
       return data.users || [];

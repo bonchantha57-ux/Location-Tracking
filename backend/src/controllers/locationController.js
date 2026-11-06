@@ -1,3 +1,4 @@
+import jwt from 'jsonwebtoken';
 import { db } from '../config/firebaseAdmin.js';
 
 export async function updateLocation(req, res) {
@@ -49,14 +50,47 @@ export async function toggleSharing(req, res) {
 
 export async function getActiveUsers(req, res) {
   try {
+    const { groupId } = req.query;
     const users = await db.getAllUsers();
-    // Return users who are actively sharing
-    const activeSharing = users
-      .filter(u => u.isSharing && u.location?.lat)
-      .map(({ passwordHash, ...safeUser }) => safeUser);
 
-    return res.json({ users: activeSharing });
+    // Check if requester is Admin
+    let isAdmin = false;
+    const authHeader = req.headers['authorization'];
+    if (authHeader) {
+      try {
+        const token = authHeader.split(' ')[1];
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
+        if (decoded.role === 'admin' || decoded.email?.toLowerCase().includes('admin')) {
+          isAdmin = true;
+        }
+      } catch (e) {}
+    }
+
+    // 1. If Admin: Has God-view access to see ALL active users who are sharing!
+    if (isAdmin) {
+      const activeSharing = users
+        .filter(u => u.isSharing && u.location?.lat)
+        .map(({ passwordHash, ...safeUser }) => safeUser);
+      return res.json({ users: activeSharing });
+    }
+
+    // 2. If groupId is provided: ONLY return members of this specific group who have isSharing=true!
+    if (groupId) {
+      const cleanGroupId = groupId.toUpperCase().trim();
+      const group = await db.getGroup(cleanGroupId);
+      if (group && group.members) {
+        const memberUids = new Set(Object.keys(group.members));
+        const groupUsers = users
+          .filter(u => memberUids.has(u.uid) && u.isSharing && u.location?.lat)
+          .map(({ passwordHash, ...safeUser }) => safeUser);
+        return res.json({ users: groupUsers });
+      }
+    }
+
+    // 3. Normal users without a group: strictly return empty array (zero stranger visibility)
+    return res.json({ users: [] });
   } catch (err) {
+    console.error("Error fetching active users:", err);
     return res.status(500).json({ error: 'Server error fetching active users' });
   }
 }
