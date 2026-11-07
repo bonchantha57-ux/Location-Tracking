@@ -6,7 +6,8 @@ import {
   googleProvider, 
   signInWithPopup, 
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword 
+  createUserWithEmailAndPassword,
+  signOut 
 } from '../config/firebase';
 
 const AuthContext = createContext(null);

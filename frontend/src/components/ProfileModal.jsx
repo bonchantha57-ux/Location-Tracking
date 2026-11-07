@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   User, 
@@ -27,6 +27,13 @@ export default function ProfileModal({ isOpen, onClose, lang = 'km' }) {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState(false);
+
+  useEffect(() => {
+    if (currentUser) {
+      setDisplayName(currentUser.displayName || '');
+      setSelectedAvatar(currentUser.avatar || '');
+    }
+  }, [currentUser, isOpen]);
 
   if (!isOpen || !currentUser) return null;
 

@@ -469,15 +469,18 @@ export function TrackingProvider({ children }) {
   // Clean up all groups, members, and trails immediately when user logs out
   useEffect(() => {
     const handleLogoutCleanup = () => {
-      if (currentGroup?.groupId) {
-        socket.emit('leave_group', { groupId: currentGroup.groupId });
-      }
+      try {
+        if (currentGroup?.groupId && socket?.connected) {
+          socket.emit('leave_group', { groupId: currentGroup.groupId });
+        }
+      } catch (e) {}
+
       setCurrentGroup(null);
       setUserGroups([]);
       setAllUsers([]);
       setGroupTrails({});
-      setSelectedUserId(null);
       setFocusedTrailUid(null);
+
       try {
         localStorage.removeItem('MAP_TRACKING_CURRENT_GROUP');
         localStorage.removeItem('MAP_TRACKING_USER_GROUPS');
