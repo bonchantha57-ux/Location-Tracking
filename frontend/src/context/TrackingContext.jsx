@@ -254,7 +254,7 @@ export function TrackingProvider({ children }) {
 
     function onUserProfileUpdated(data) {
       if (!data || !data.uid) return;
-      setOtherActiveUsers(prev => prev.map(u => u.uid === data.uid ? {
+      setAllUsers(prev => prev.map(u => u.uid === data.uid ? {
         ...u,
         displayName: data.displayName || u.displayName,
         avatar: data.avatar || u.avatar
@@ -474,7 +474,6 @@ export function TrackingProvider({ children }) {
       }
       setCurrentGroup(null);
       setUserGroups([]);
-      setOtherActiveUsers([]);
       setAllUsers([]);
       setGroupTrails({});
       setSelectedUserId(null);
