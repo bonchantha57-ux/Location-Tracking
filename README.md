@@ -1,12 +1,62 @@
 # 🛰️ MAP TRACKING - Real-time GPS Geolocation & Group Movement Trails Platform
 
-ប្រព័ន្ធតាមដាន និងចែករំលែកទីតាំងផ្ទាល់ក្នុងពេលជាក់ស្តែង (Real-time Live Location Tracking) ជាមួយមុខងារ **កត់ត្រាដានផ្លូវធ្វើដំណើរ (Movement Breadcrumb Trails)**, **Duo ២នាក់ (QR Code Scan)**, និង **Group Tracking** បង្កើតឡើងដោយប្រើប្រាស់ **Professional Fullstack Architecture** (React + Leaflet + Tailwind CSS + Node.js/Express + Socket.IO + Firebase Firestore) ដែលមានសុវត្ថិភាពខ្ពស់ និងរចនាឡើង 100% Mobile Responsive ទាំងលើ iOS (iPhone) និង Android។
+ប្រព័ន្ធតាមដាន និងចែករំលែកទីតាំងផ្ទាល់ក្នុងពេលជាក់ស្តែង (**Real-time Live Location Tracking**) ជាមួយមុខងារ **កត់ត្រាដានផ្លូវធ្វើដំណើរ (Movement Breadcrumb Trails)**, **Duo ២នាក់ (QR Code Scan)**, និង **Group Tracking** បង្កើតឡើងដោយប្រើប្រាស់ **Professional Fullstack Architecture** (React + Leaflet + Tailwind CSS + Node.js/Express + Socket.IO + Firebase Firestore) ដែលមានសុវត្ថិភាពខ្ពស់ និងរចនាឡើង 100% Mobile Responsive ទាំងលើ iOS (iPhone) និង Android។
 
 ---
 
-## 📋 តម្រូវការប្រព័ន្ធ (System Requirements & Prerequisites)
+## 📋 សេចក្តីលម្អិតនៃលក្ខខណ្ឌតម្រូវការប្រព័ន្ធ (Software Requirements Specification - SRS)
 
-ដើម្បីដំឡើង និងដំណើរការគម្រោងនេះបានរលូន សូមផ្ទៀងផ្ទាត់តម្រូវការផ្នែករឹង និងផ្នែកទន់ដូចខាងក្រោម៖
+### ១. តម្រូវការមុខងារចម្បង (Functional Requirements - FR)
+
+#### 🔐 FR-1: ការគ្រប់គ្រងគណនី និងសិទ្ធិប្រើប្រាស់ (User Authentication & Profile)
+* **FR-1.1 (Dual-Engine Authentication):** គាំទ្រការ Sign-in តាមរយៈ Google One-Click Auth (Firebase Auth) និង Email/Password ផ្ទាល់ជាមួយ Backend Database (JWT + bcryptjs)។
+* **FR-1.2 (Persistent Login Session):** រក្សាទុក Login Session ជាប់ជានិច្ច មិនបាត់បង់ពេល Refresh ទំព័រ ឬបិទបើក Tab ឡើយ លុះត្រាតែ User ចុចប៊ូតុង "ចាកចេញ" (Logout) ដោយផ្ទាល់។
+* **FR-1.3 (Clean & Instant Logout):** ពេល User ចុច Logout ប្រព័ន្ធនឹងសម្អាត JWT, គណនី, ទិន្នន័យ Group, Trails និងបិទ Socket Connection ភ្លាមៗ ១០០% ដោយមិនបាច់ Refresh ឡើយ។
+* **FR-1.4 (User Profile Customization):** User អាចកែប្រែ Display Name និងរូបតំណាង Avatar របស់ខ្លួនបានតាមចិត្តគ្រប់ពេលវេលា។
+* **FR-1.5 (Real-time Display Name on Map Marker):** បង្ហាញឈ្មោះគណនីរបស់ User និងមិត្តភក្តិដោយផ្ទាល់នៅលើ Marker ផែនទី ដើម្បីងាយស្រួលសម្គាល់ថាអ្នកណាជានរណា។
+
+#### 📍 FR-2: ការតាមដានទីតាំង និងដានផ្លូវធ្វើដំណើរ (Real-time Live GPS & Movement Trails)
+* **FR-2.1 (Live Geolocation Stream):** ផ្សាយផ្ទាល់កូអរដោនេ GPS តាមរយៈ WebSockets (Socket.IO) ជាមួយរយៈកម្ពស់ (Altitude), ទិសដៅ (Heading), ល្បឿន (Speed) និងកម្រិតជាក់លាក់ (Accuracy) ក្នុងកម្រិត Sub-second (< 200ms)។
+* **FR-2.2 (Movement Breadcrumb Trails):** កត់ត្រា និងគូរដានផ្លូវធ្វើដំណើរ (Trails) របស់សមាជិកម្នាក់ៗចាប់តាំងពីពេលដែលបានចុចចូលរួមក្នុង Group ឬ Duo។
+* **FR-2.3 (Visual Glow Polyline):** គូរខ្សែដានផ្លូវបែប Neon Glow លើផែនទីតាមពណ៌សម្គាល់សមាជិកនីមួយៗ ជាមួយ Start Pin `[S]` បញ្ជាក់ម៉ោងចាប់ផ្តើមដំណើរ។
+* **FR-2.4 (Distance Calculation):** គណនាផលបូកចម្ងាយសរុប (Total Traveled Distance) ដែលបានធ្វើដំណើរជា គីឡូម៉ែត្រ (km) ឬ ម៉ែត្រ (m) ដោយស្វ័យប្រវត្តិ។
+* **FR-2.5 (Trail Controls):** ប៊ូតុងបើក/បិទដានផ្លូវលើ Map និងប៊ូតុង Auto-fit Bounds ដើម្បីពង្រីកផែនទីមើលដានផ្លូវទាំងមូលរបស់សមាជិកដែលបានជ្រើសរើស។
+
+#### 👥 FR-3: ការគ្រប់គ្រងបន្ទប់ និងការការពារភាពឯកជន (Room Management & Privacy Isolation)
+* **FR-3.1 (Auto-generated Unique Room IDs):** ប្រព័ន្ធបង្កើត Room ID និង Duo ID ដោយស្វ័យប្រវត្ត (ឧ. `GP-8492`, `DUO-1934`) ដើម្បីធានាថាមិនមានការវាយ ID ជាន់គ្នា ឬស្ទួនគ្នាឡើយ។
+* **FR-3.2 (2-Person Duo Mode):** បន្ទប់ឯកជន ២នាក់ កម្រិតអតិបរមា ២នាក់ ជាមួយ QR Code Scan និង Invite Link ចុចចូលភ្លាមៗ។
+* **FR-3.3 (Multi-member Group Mode):** បន្ទប់ក្រុមធំៗសម្រាប់គ្រួសារ ឬក្រុមការងារ (រហូតដល់ ៥០នាក់)។
+* **FR-3.4 (Multi-Group Switching):** សមាជិកអាចចូលរួមច្រើនក្រុមក្នុងពេលតែមួយ ហើយអាចចុចប្តូរមើលទីតាំងសមាជិកតាមក្រុមនីមួយៗលើផែនទីបានយ៉ាងងាយស្រួល។
+* **FR-3.5 (Group Owner Kick/Remove):** អ្នកបង្កើតបន្ទប់ (Room Owner) មានសិទ្ធិដក (Kick/Remove) សមាជិកណាម្នាក់ចេញពីក្រុមបានភ្លាមៗ។
+* **FR-3.6 (Strict Group Isolation / Privacy Guarantee):** User ធម្មតាអាចមើលឃើញទីតាំងតែសមាជិកដែលស្ថិតក្នុងក្រុមតែមួយជាមួយគ្នាប៉ុណ្ណោះ ដាច់ខាតមិនអាចមើលឃើញ User ដទៃដែលមិនបានចែករំលែក ឬមិនស្ថិតក្នុងក្រុមឡើយ។
+
+#### 🛡️ FR-4: ផ្ទាំងគ្រប់គ្រងអ្នកគ្រប់គ្រងជាន់ខ្ពស់ (Admin God-View Dashboard & Controls)
+* **FR-4.1 (Dedicated Admin Authentication):** ផ្ទៀងផ្ទាត់ Email & Password Admin ផ្ទាល់ពី Backend Database ដោយសុវត្ថិភាព។
+* **FR-4.2 (Live Online & Total User Telemetry):** បង្ហាញស្ថិតិសរុបនៃចំនួន User ក្នុង Database និងចំនួន User ដែលកំពុង Online ចែករំលែកទីតាំងជាក់ស្តែង។
+* **FR-4.3 (User Management CRUD):** Admin អាចបង្កើត Account User ថ្មី, កែប្រែព័ត៌មាន (Display Name, Email, Role) និងលុប Account User ពី Database បាន។
+* **FR-4.4 (God-View Map Tracking):** Admin មានសិទ្ធិពិសេសតែម្នាក់គត់ (God-View) ដែលអាចមើលឃើញទីតាំងរបស់ User ទាំងអស់ក្នុងប្រព័ន្ធលើផែនទី និងអាចចុច Locate User នីមួយៗបានភ្លាមៗ។
+* **FR-4.5 (All Groups Visibility):** Admin អាចមើលឃើញគ្រប់ Group/Duo ទាំងអស់ដែល User បានបង្កើតឡើងក្នុងប្រព័ន្ធ។
+
+#### 🎨 FR-5: ទំនុកចិត្ត និងបទពិសោធន៍អ្នកប្រើប្រាស់ (Reliability & UX)
+* **FR-5.1 (React ErrorBoundary):** ការពារ និងទប់ស្កាត់កុំឱ្យកើតមានផ្ទាំងខៀវងងឹត ឬ Blank Screen ដោយមានផ្ទាំងជូនដំណឹង និងប៊ូតុង Reload/Reset កម្មវិធីយ៉ាងច្បាស់លាស់។
+* **FR-5.2 (Custom Brand Vector Logo):** ឡូហ្គោផែនទីផ្កាយរណបទំនើប (Cyan & Blue Glow Vector) ទាំងលើ Navbar, Modal និង Favicon។
+* **FR-5.3 (100% Mobile Responsive):** រចនាឡើងការពារកុំឱ្យបាត់បង់ប៊ូតុង ឬកាត់ផ្នែកខាងក្រោម (Zero Cutoff ជាមួយ `100dvh` និង iOS Safe Area Insets)។
+* **FR-5.4 (Bilingual Khmer/English):** គាំទ្រទាំងស្រុងជាភាសាខ្មែរ (Default) និងភាសាអង់គ្លេស។
+
+---
+
+### ២. តម្រូវការមិនមែនមុខងារ (Non-Functional Requirements - NFR)
+
+| ប្រភេទតម្រូវការ | កម្រិតស្តង់ដារ | ការពិពណ៌នាលម្អិត |
+| :--- | :--- | :--- |
+| **NFR-1: សុវត្ថិភាព (Security)** | HTTPS & Data Protection | GPS / HTML5 Geolocation API **ទាមទារដាច់ខាតនូវ HTTPS (SSL)**។ ពាក្យសម្ងាត់ត្រូវបាន Hash ដោយ `bcryptjs` (Salt Rounds 10) និងការពារ REST API ដោយ JSON Web Token (`jwt`)។ |
+| **NFR-2: ល្បឿន និងប្រសិទ្ធភាព (Performance)** | Latency < 200ms | ផ្សាយផ្ទាល់ទីតាំងតាម WebSocket (Socket.IO Binary Protocol) ដែលមានល្បឿនលឿន និងស៊ី Bandwidth តិចបំផុត។ គណនាចម្ងាយដោយរូបមន្ត Haversine Formula។ |
+| **NFR-3: ភាពអាចជឿជាក់បាន (Reliability)** | 99.9% Uptime & Fallback | មានប្រព័ន្ធ React `ErrorBoundary`, Graceful Error Handling, និង Reconnect ស្វ័យប្រវត្តពេលដាច់អ៊ីនធឺណិត។ |
+| **NFR-4: ភាពងាយស្រួលប្រើប្រាស់ (Usability)** | 100% Mobile Friendly | Font អក្សរខ្មែរស្រស់ស្អាត (Kantumruy Pro) និង Plus Jakarta Sans, មិនបាំង Home Bar លើ iPhone, មិនបាច់ដំឡើង App ពី App Store/Play Store (Web App ដំណើរការភ្លាមៗ)។ |
+
+---
+
+## 💻 តម្រូវការផ្នែករឹង និងផ្នែកទន់ (System Prerequisites)
 
 ### ១. តម្រូវការផ្នែកទន់ (Software Prerequisites)
 | ឧបករណ៍ / បច្ចេកវិទ្យា | កំណែដែលទាមទារ (Required Version) | ការពិពណ៌នា |
@@ -31,26 +81,6 @@
   * Android Phone (Android 8.0 ឡើងទៅ) លើ Google Chrome
   * បើកមុខងារ Location / GPS (High Accuracy Mode) លើទូរស័ព្ទ
 * **កុំព្យូទ័រ (Desktop / Laptop)**: គាំទ្រគ្រប់ OS (Windows, macOS, Linux)
-
----
-
-## ✨ មុខងារចម្បងៗ (Core Features)
-
-- 📍 **Real-time Live GPS Tracking**: តាមដានទីតាំងផ្ទាល់ ក្នុងវិនាទីជាក់ស្តែង ជាមួយសញ្ញា Radar Pulse និង Compass Heading។
-- 🛤️ **Movement Breadcrumb Trails (ដានផ្លូវធ្វើដំណើរ)**:
-  - កត់ត្រារាល់ការផ្លាស់ទីរបស់សមាជិកម្នាក់ៗ **ចាប់តាំងពីវិនាទីដែលបានចុចចូល Group/Duo**។
-  - គូរខ្សែដានភ្លឺច្បាស់បែប Neon Glow លើផែនទី (Polyline) តាមពណ៌សម្គាល់សមាជិកម្នាក់ៗ។
-  - បង្ហាញសញ្ញា **Start Pin `[S]`** នៅចំណុចចាប់ផ្តើម និងបង្ហាញម៉ោងពេលចុចលើវា។
-  - គណនា **ចម្ងាយសរុប (Distance Traveled ជា km/m)** ដោយស្វ័យប្រវត្តិ។
-  - ប៊ូតុង **`[ 🛤️ ដានផ្លូវ: បើក / បិទ ]`** លើផែនទី និងប៊ូតុង **`[ 🛤️ មើលដាន ]`** សម្រាប់ Auto-fit bounds ពង្រីកបង្ហាញដានផ្លូវទាំងអស់។
-- 🔒 **Duo Tracking Mode (សម្រាប់តែ ២នាក់)**: បង្កើតបន្ទប់ឯកជនលក្ខណៈគូស្នេហ៍ ឬមិត្តភក្តិ ២នាក់ ជាមួយ QR Code និង Link ចុចចូលភ្លាមៗ។
-- 👥 **Multi-Member Group Rooms**: បង្កើតបន្ទប់ក្រុមធំៗ (គ្រួសារ, ក្រុមទេសចរណ៍, ក្រុមការងារដឹកជញ្ជូន)។
-- 📱 **100% Mobile Responsive (Zero Clipping)**:
-  - ប្រើប្រាស់ `100dvh` ការពារកុំឱ្យបាត់ផ្នែកលើ ឬក្រោមលើ Android & iPhone។
-  - គាំទ្រ Safe Area Insets (`env(safe-area-inset-bottom)`) មិនប៉ះទង្គិចជាមួយ Home Bar។
-- 🗺️ **Multi-layer Map Tiles**: អាចប្តូរ Map បាន ៣ ប្រភេទ (OpenStreetMap, Esri World Satellite, CartoDB Dark Matter)។
-- 🔐 **Dual-Mode Secure Authentication**: គាំទ្រទាំង Google Sign-In ដោយផ្ទាល់ និង Email/Password ជាមួយ JWT + bcryptjs។
-- 🛡️ **God-view Admin Dashboard**: ផ្ទាំងគ្រប់គ្រង Admin មើលស្ថិតិសរុប និង Telemetry របស់ User ទាំងអស់លើផែនទី។
 
 ---
 
@@ -89,9 +119,11 @@ Maptrackking/
 │    │    │    ├── AuthContext.jsx    # User State, Firebase Auth & JWT
 │    │    │    └── TrackingContext.jsx# Live GPS, Trails, Duo & Rooms Manager
 │    │    ├── components/
+│    │    │    ├── ErrorBoundary.jsx  # React Error Boundary Safeguard
 │    │    │    ├── MapView.jsx        # Leaflet, Markers, Glow Polylines & Trails
 │    │    │    ├── Navbar.jsx         # Header responsive with status indicators
 │    │    │    ├── AuthModal.jsx      # Glassmorphic Login/Register & Google Auth
+│    │    │    ├── ProfileModal.jsx   # Profile Name & Avatar Customizer
 │    │    │    ├── ShareModal.jsx     # Duo QR Code Generator & Room Invites
 │    │    │    ├── ActiveTrackersPanel.jsx # Friends list, distance, & trail buttons
 │    │    │    ├── HUDControls.jsx    # Telemetry HUD (Speed, Alt, Heading, Trails)
@@ -103,6 +135,9 @@ Maptrackking/
 │    │    │    └── firebase.js        # Client-side Firebase App init
 │    │    ├── App.jsx
 │    │    └── main.jsx
+│    ├── public/
+│    │    ├── logo.svg                # Brand Vector Logo
+│    │    └── favicon.svg             # Web App Favicon
 │    ├── .env                         # Frontend Environment Variables
 │    ├── .env.example
 │    ├── index.html
@@ -215,16 +250,24 @@ npm run dev
 * `POST /api/auth/register` - ចុះឈ្មោះគណនីថ្មី
 * `POST /api/auth/login` - ចូលប្រើប្រាស់គណនី (ទទួលបាន JWT Token)
 * `POST /api/auth/firebase-login` - Sync គណនី Google Firebase ជាមួយ Backend
+* `PUT /api/auth/profile` - កែប្រែព័ត៌មាន Display Name និង Avatar
 * `GET /api/location/group/:groupId` - មើលព័ត៌មានបន្ទប់ និងសមាជិក
 * `GET /api/location/group/:groupId/trails` - ទាញយកទិន្នន័យដានផ្លូវធ្វើដំណើរទាំងអស់ក្នុងបន្ទប់
+* `DELETE /api/location/group/:groupId/members/:memberUid` - Kick / Remove សមាជិកចេញពីបន្ទប់
+* `GET /api/admin/stats` - ស្ថិតិទូទៅ User Online & Total Users
+* `GET /api/admin/users` - ទាញយកបញ្ជី User ទាំងអស់ក្នុង Database
+* `POST /api/admin/users` - Admin បង្កើតគណនី User ថ្មី
+* `DELETE /api/admin/users/:uid` - Admin លុប User ចេញពី Database
 * `GET /api/health` - ត្រួតពិនិត្យសុខភាព Server (Health Check)
 
 ### WebSocket Real-time Events
 * `send_location` (Client ➔ Server): ផ្ញើកូអរដោនេ (lat, lng, speed, heading, altitude)
-* `location_update` (Server ➔ Client): ចែករំលែកទីតាំងផ្ទាល់ទៅកាន់សមាជិកក្នុងបន្ទប់
+* `group_location_update` (Server ➔ Client): ចែករំលែកទីតាំងផ្ទាល់ទៅកាន់សមាជិកក្នុងបន្ទប់
 * `join_group` (Client ➔ Server): ចូលរួមបន្ទប់ Group ឬ Duo
+* `leave_group` (Client ➔ Server): ចាកចេញពីបន្ទប់ Group ឬ Duo
 * `group_trails_sync` (Server ➔ Client): ផ្តល់ទិន្នន័យដានផ្លូវចាស់ៗទាំងអស់ជូនសមាជិកដែលទើបចូល
 * `group_trail_point` (Server ➔ Client): បញ្ជូនចំណុចដានផ្លូវថ្មីមួយៗ Real-time ទៅកាន់សមាជិកទាំងអស់
+* `update_profile` (Client ➔ Server): ផ្សាយដំណឹងប្តូរឈ្មោះ/Avatar ទៅសមាជិកក្នុង Group ភ្លាមៗ
 
 ---
 
