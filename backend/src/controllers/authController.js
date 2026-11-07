@@ -196,3 +196,29 @@ export async function googleAuth(req, res) {
   }
 }
 
+// User update their own profile (Display name and Avatar)
+export async function updateProfile(req, res) {
+  try {
+    const uid = req.user?.uid;
+    if (!uid) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const { displayName, avatar } = req.body;
+    if (!displayName || !displayName.trim()) {
+      return res.status(400).json({ error: 'Display name cannot be empty' });
+    }
+
+    const updatedUser = await db.updateUserProfile(uid, {
+      displayName: displayName.trim(),
+      avatar
+    });
+
+    const { passwordHash, ...userResponse } = updatedUser;
+    return res.json({ success: true, user: userResponse });
+  } catch (err) {
+    console.error("Update profile error:", err);
+    return res.status(500).json({ error: 'Server error updating profile' });
+  }
+}
+

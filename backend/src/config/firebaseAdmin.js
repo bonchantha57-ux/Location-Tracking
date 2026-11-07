@@ -236,6 +236,46 @@ export const db = {
     return true;
   },
 
+  // Update user's profile (Display Name, Avatar) and sync to all groups
+  async updateUserProfile(uid, { displayName, avatar }) {
+    if (!uid) return null;
+    const cleanUid = String(uid);
+    const updates = {};
+    if (displayName) updates.displayName = displayName.trim();
+    if (avatar) updates.avatar = avatar;
+
+    // 1. Update user in DB
+    const updated = await this.setUser(cleanUid, updates);
+
+    // 2. Update member info in all groups where this user is a member
+    const data = readLocalDb();
+    if (data.groups) {
+      for (const [groupId, group] of Object.entries(data.groups)) {
+        let changed = false;
+        if (group.creatorUid === cleanUid && updates.displayName) {
+          group.creatorName = updates.displayName;
+          changed = true;
+        }
+        if (group.members && group.members[cleanUid]) {
+          if (updates.displayName) group.members[cleanUid].displayName = updates.displayName;
+          if (updates.avatar) group.members[cleanUid].avatar = updates.avatar;
+          changed = true;
+        }
+        if (changed) {
+          if (isConnected && firestoreDb) {
+            syncCloud(setDoc(doc(firestoreDb, 'groups', groupId), {
+              creatorName: group.creatorName,
+              members: group.members
+            }, { merge: true }));
+          }
+        }
+      }
+      writeLocalDb(data);
+    }
+
+    return updated;
+  },
+
   // Update user's live location in Firestore and Realtime Database
   async updateUserLocation(uid, locationData, isSharing = true) {
     if (!uid) return null;

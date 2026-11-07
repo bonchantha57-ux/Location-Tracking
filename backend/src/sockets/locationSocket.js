@@ -83,6 +83,13 @@ export function setupLocationSockets(io) {
       }
     });
 
+    // Real-time profile update broadcast
+    socket.on('update_profile', ({ uid, displayName, avatar }) => {
+      if (uid) {
+        io.emit('user_profile_updated', { uid, displayName, avatar });
+      }
+    });
+
     // Join Admin broadcast channel
     socket.on('join_admin_feed', () => {
       socket.join('admin_channel');

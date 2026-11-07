@@ -61,6 +61,20 @@ export const api = {
     return await res.json();
   },
 
+  async updateProfile(profileData) {
+    const res = await fetch(`${API_BASE_URL}/auth/profile`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader()
+      },
+      body: JSON.stringify(profileData)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to update profile');
+    return data.user;
+  },
+
   // Location API
   async updateLocation(locationData, isSharing = true) {
     const res = await fetch(`${API_BASE_URL}/location/update`, {

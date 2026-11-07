@@ -162,8 +162,10 @@ export default function MapView({ selectedUserId, onSelectUser, lang = 'km' }) {
             <div class="relative w-10 h-10 rounded-full border-2 border-cyan-400 bg-slate-900 overflow-hidden shadow-lg shadow-cyan-500/50 flex items-center justify-center">
               <img src="${userAvatar}" alt="${userName}" class="w-full h-full object-cover" />
             </div>
-            <div class="absolute -bottom-2.5 bg-gradient-to-r from-blue-600 to-cyan-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow border border-white/30 whitespace-nowrap">
-              ${lang === 'km' ? 'ទីតាំងអ្នក' : 'YOU'}
+            <div class="absolute -bottom-3 bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-lg border border-cyan-200/50 whitespace-nowrap flex items-center gap-1 max-w-[140px] truncate">
+              <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0"></span>
+              <span class="truncate">${userName}</span>
+              <span class="text-[8px] text-cyan-200 font-semibold opacity-90 shrink-0">(${lang === 'km' ? 'អ្នក' : 'You'})</span>
             </div>
           </div>
         `
@@ -173,7 +175,27 @@ export default function MapView({ selectedUserId, onSelectUser, lang = 'km' }) {
       markersGroupRef.current.addLayer(marker);
       myMarkerRef.current = marker;
     } else {
+      const myIcon = L.divIcon({
+        className: 'custom-user-marker',
+        iconSize: [52, 52],
+        iconAnchor: [26, 26],
+        html: `
+          <div class="relative flex items-center justify-center w-13 h-13 cursor-pointer group">
+            <span class="absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-60 animate-ping"></span>
+            <span class="absolute inline-flex h-11 w-11 rounded-full bg-cyan-500/30 border-2 border-cyan-400"></span>
+            <div class="relative w-10 h-10 rounded-full border-2 border-cyan-400 bg-slate-900 overflow-hidden shadow-lg shadow-cyan-500/50 flex items-center justify-center">
+              <img src="${userAvatar}" alt="${userName}" class="w-full h-full object-cover" />
+            </div>
+            <div class="absolute -bottom-3 bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-lg border border-cyan-200/50 whitespace-nowrap flex items-center gap-1 max-w-[140px] truncate">
+              <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0"></span>
+              <span class="truncate">${userName}</span>
+              <span class="text-[8px] text-cyan-200 font-semibold opacity-90 shrink-0">(${lang === 'km' ? 'អ្នក' : 'You'})</span>
+            </div>
+          </div>
+        `
+      });
       myMarkerRef.current.setLatLng([myLocation.lat, myLocation.lng]);
+      myMarkerRef.current.setIcon(myIcon);
     }
 
     // Accuracy Circle
@@ -208,10 +230,30 @@ export default function MapView({ selectedUserId, onSelectUser, lang = 'km' }) {
       const friendAvatar = friend.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${friend.uid}`;
       const distanceStr = formatDistance(friend.distanceKm);
 
+      const friendIcon = L.divIcon({
+        className: 'custom-friend-marker',
+        iconSize: [52, 52],
+        iconAnchor: [26, 26],
+        html: `
+          <div class="relative flex items-center justify-center w-13 h-13 cursor-pointer group">
+            <span class="absolute inline-flex h-full w-full rounded-full ${isSelected ? 'bg-amber-400' : 'bg-emerald-400'} opacity-50 animate-ping"></span>
+            <div class="relative w-10 h-10 rounded-full border-2 ${isSelected ? 'border-amber-400 ring-4 ring-amber-400/40' : 'border-emerald-400'} bg-slate-900 overflow-hidden shadow-lg flex items-center justify-center">
+              <img src="${friendAvatar}" alt="${friend.displayName || 'User'}" class="w-full h-full object-cover" />
+            </div>
+            <div class="absolute -bottom-3 bg-slate-950/95 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-lg border ${isSelected ? 'border-amber-400 text-amber-200' : 'border-emerald-500/60'} whitespace-nowrap flex items-center gap-1 max-w-[130px] truncate">
+              <span class="w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-amber-400' : 'bg-emerald-400 animate-pulse'} shrink-0"></span>
+              <span class="truncate">${friend.displayName || 'User'}</span>
+              <span class="text-[8px] text-emerald-300 font-mono opacity-80 shrink-0">(${distanceStr})</span>
+            </div>
+          </div>
+        `
+      });
+
       if (friendMap.has(friend.uid)) {
-        // Marker already exists: smoothly move coordinates (Zero flicker!)
+        // Marker already exists: smoothly move coordinates and update icon
         const existing = friendMap.get(friend.uid);
         existing.marker.setLatLng([friend.location.lat, friend.location.lng]);
+        existing.marker.setIcon(friendIcon);
 
         // Update popup content if open
         const popup = existing.marker.getPopup();
@@ -240,24 +282,6 @@ export default function MapView({ selectedUserId, onSelectUser, lang = 'km' }) {
         }
       } else {
         // Create new marker instance
-        const friendIcon = L.divIcon({
-          className: 'custom-friend-marker',
-          iconSize: [52, 52],
-          iconAnchor: [26, 26],
-          html: `
-            <div class="relative flex items-center justify-center w-13 h-13 cursor-pointer group">
-              <span class="absolute inline-flex h-full w-full rounded-full ${isSelected ? 'bg-amber-400' : 'bg-emerald-400'} opacity-50 animate-ping"></span>
-              <div class="relative w-10 h-10 rounded-full border-2 ${isSelected ? 'border-amber-400 ring-4 ring-amber-400/40' : 'border-emerald-400'} bg-slate-900 overflow-hidden shadow-lg flex items-center justify-center">
-                <img src="${friendAvatar}" alt="${friend.displayName}" class="w-full h-full object-cover" />
-              </div>
-              <div class="absolute -bottom-2.5 bg-slate-900/95 text-white text-[9px] font-semibold px-2 py-0.5 rounded shadow border border-emerald-500/50 whitespace-nowrap flex items-center gap-1">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                ${distanceStr}
-              </div>
-            </div>
-          `
-        });
-
         const marker = L.marker([friend.location.lat, friend.location.lng], { icon: friendIcon });
         
         marker.bindPopup(`

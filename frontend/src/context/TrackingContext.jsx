@@ -252,6 +252,49 @@ export function TrackingProvider({ children }) {
       refreshUsers();
     }
 
+    function onUserProfileUpdated(data) {
+      if (!data || !data.uid) return;
+      setOtherActiveUsers(prev => prev.map(u => u.uid === data.uid ? {
+        ...u,
+        displayName: data.displayName || u.displayName,
+        avatar: data.avatar || u.avatar
+      } : u));
+
+      setCurrentGroup(prev => {
+        if (!prev || !prev.members || !prev.members[data.uid]) return prev;
+        const updatedMembers = {
+          ...prev.members,
+          [data.uid]: {
+            ...prev.members[data.uid],
+            displayName: data.displayName || prev.members[data.uid].displayName,
+            avatar: data.avatar || prev.members[data.uid].avatar
+          }
+        };
+        const updatedGroup = { ...prev, members: updatedMembers };
+        try {
+          localStorage.setItem('MAP_TRACKING_CURRENT_GROUP', JSON.stringify(updatedGroup));
+        } catch (e) {}
+        return updatedGroup;
+      });
+
+      setUserGroups(prev => prev.map(g => {
+        if (g.members && g.members[data.uid]) {
+          return {
+            ...g,
+            members: {
+              ...g.members,
+              [data.uid]: {
+                ...g.members[data.uid],
+                displayName: data.displayName || g.members[data.uid].displayName,
+                avatar: data.avatar || g.members[data.uid].avatar
+              }
+            }
+          };
+        }
+        return g;
+      }));
+    }
+
     socket.on('user_location_update', onLocationUpdate);
     socket.on('group_location_update', onLocationUpdate);
     socket.on('user_sharing_toggled', onSharingToggled);
@@ -259,6 +302,7 @@ export function TrackingProvider({ children }) {
     socket.on('group_member_removed', onGroupMemberRemoved);
     socket.on('group_trails_sync', onGroupTrailsSync);
     socket.on('group_trail_point', onGroupTrailPoint);
+    socket.on('user_profile_updated', onUserProfileUpdated);
 
     return () => {
       socket.off('user_location_update', onLocationUpdate);
@@ -268,6 +312,7 @@ export function TrackingProvider({ children }) {
       socket.off('group_member_removed', onGroupMemberRemoved);
       socket.off('group_trails_sync', onGroupTrailsSync);
       socket.off('group_trail_point', onGroupTrailPoint);
+      socket.off('user_profile_updated', onUserProfileUpdated);
     };
   }, [currentGroup]);
 

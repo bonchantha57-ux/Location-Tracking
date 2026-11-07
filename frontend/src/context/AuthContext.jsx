@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { api } from '../services/api';
+import { socket } from '../services/socket';
 import { 
   auth, 
   googleProvider, 
@@ -173,6 +174,26 @@ export function AuthProvider({ children }) {
     setCurrentUser(null);
   };
 
+  // Update user profile (Display Name and Avatar)
+  const updateProfile = async (displayName, avatar) => {
+    if (!currentUser) throw new Error("No user logged in");
+    const updated = await api.updateProfile({ displayName, avatar });
+    const merged = { ...currentUser, ...updated };
+    setCurrentUser(merged);
+    try {
+      localStorage.setItem('MAP_TRACKING_USER', JSON.stringify(merged));
+    } catch (e) {}
+
+    // Broadcast in real-time
+    socket.emit('update_profile', {
+      uid: merged.uid,
+      displayName: merged.displayName,
+      avatar: merged.avatar
+    });
+
+    return merged;
+  };
+
   const isUserAdmin = Boolean(
     currentUser?.role === 'admin' || 
     currentUser?.email?.toLowerCase().includes('admin') ||
@@ -187,6 +208,7 @@ export function AuthProvider({ children }) {
     register,
     loginWithGoogle,
     logout,
+    updateProfile,
     isAdmin: isUserAdmin
   };
 
