@@ -106,8 +106,8 @@ function MainApp() {
           t={t}
         />
 
-        {/* Active Group / Duo Banner Indicator (Top Center, perfectly centered between layer & tracker buttons) */}
-        {currentGroup && (
+        {/* Active Group / Duo Banner Indicator (Top Center, strictly for authenticated members) */}
+        {currentUser && currentGroup && (
           <div 
             onClick={() => setIsShareOpen(true)}
             className={`absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-2xl glass-panel shadow-2xl backdrop-blur-xl animate-fadeIn max-w-[calc(100vw-130px)] sm:max-w-md cursor-pointer transition ${
@@ -146,7 +146,7 @@ function MainApp() {
                 leaveGroup();
               }}
               title={lang === 'km' ? 'ចាកចេញ' : 'Leave'}
-              className="p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition shrink-0 ml-0.5"
+              className="p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition shrink-0 ml-0.5 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -157,7 +157,13 @@ function MainApp() {
         <HUDControls
           selectedUser={selectedUser}
           onClearSelected={handleClearSelected}
-          onOpenShare={() => setIsShareOpen(true)}
+          onOpenShare={() => {
+            if (currentUser) {
+              setIsShareOpen(true);
+            } else {
+              setIsAuthOpen(true);
+            }
+          }}
           lang={lang}
           t={t}
         />
@@ -165,18 +171,24 @@ function MainApp() {
         {/* Mobile Floating Group/Share Button (Bottom Center, safely positioned without cutoff) */}
         <div className="sm:hidden absolute bottom-5 sm:bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-auto mb-[env(safe-area-inset-bottom,0px)]">
           <button
-            onClick={() => setIsShareOpen(true)}
+            onClick={() => {
+              if (currentUser) {
+                setIsShareOpen(true);
+              } else {
+                setIsAuthOpen(true);
+              }
+            }}
             className={`flex items-center gap-2 px-3.5 py-2.5 rounded-2xl text-white font-black text-xs shadow-2xl active:scale-95 transition whitespace-nowrap cursor-pointer border backdrop-blur-xl ${
-              isDuo
+              isDuo && currentUser
                 ? 'bg-gradient-to-r from-pink-500 via-rose-600 to-indigo-600 border-pink-400/50 shadow-pink-500/40'
                 : 'bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 border-cyan-400/50 shadow-cyan-500/40'
             }`}
           >
-            {isDuo ? <Heart className="w-3.5 h-3.5 text-white animate-bounce" /> : <Users className="w-3.5 h-3.5" />}
+            {isDuo && currentUser ? <Heart className="w-3.5 h-3.5 text-white animate-bounce" /> : <Users className="w-3.5 h-3.5" />}
             <span className="truncate max-w-[130px]">
-              {currentGroup 
+              {currentUser && currentGroup 
                 ? `${currentGroup.groupId} (${membersCount}/${currentGroup.maxMembers || (isDuo ? 2 : 50)})` 
-                : (lang === 'km' ? 'ចែករំលែក ២នាក់' : 'Share Duo')}
+                : (lang === 'km' ? 'ចែករំលែកទីតាំង' : 'Share Location')}
             </span>
           </button>
         </div>

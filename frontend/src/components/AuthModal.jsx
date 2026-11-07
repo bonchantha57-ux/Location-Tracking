@@ -112,8 +112,8 @@ export default function AuthModal({ isOpen, onClose, onAdminLoggedIn, lang = 'km
         {/* Header - Fixed shrink-0 */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/25 border border-cyan-400/30 shrink-0">
-              <Navigation className="w-4 h-4 sm:w-5 sm:h-5 text-white transform -rotate-45" />
+            <div className="w-9 h-9 sm:w-10 sm:h-10 shrink-0">
+              <img src="/logo.svg" alt="Map Tracking" className="w-full h-full object-contain drop-shadow-[0_0_8px_rgba(6,182,212,0.4)]" />
             </div>
             <div className="truncate">
               <h2 className="text-base sm:text-lg font-black text-white tracking-wider leading-tight truncate">

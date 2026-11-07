@@ -466,6 +466,36 @@ export function TrackingProvider({ children }) {
     refreshUserGroups();
   }, [currentUser?.uid]);
 
+  // Clean up all groups, members, and trails immediately when user logs out
+  useEffect(() => {
+    const handleLogoutCleanup = () => {
+      if (currentGroup?.groupId) {
+        socket.emit('leave_group', { groupId: currentGroup.groupId });
+      }
+      setCurrentGroup(null);
+      setUserGroups([]);
+      setOtherActiveUsers([]);
+      setAllUsers([]);
+      setGroupTrails({});
+      setSelectedUserId(null);
+      setFocusedTrailUid(null);
+      try {
+        localStorage.removeItem('MAP_TRACKING_CURRENT_GROUP');
+        localStorage.removeItem('MAP_TRACKING_USER_GROUPS');
+      } catch (e) {}
+    };
+
+    window.addEventListener('map_tracking_user_logout', handleLogoutCleanup);
+
+    if (!currentUser) {
+      handleLogoutCleanup();
+    }
+
+    return () => {
+      window.removeEventListener('map_tracking_user_logout', handleLogoutCleanup);
+    };
+  }, [currentUser]);
+
   // Switch Active Group to view on Map
   const switchActiveGroup = (groupId) => {
     const target = userGroups.find(g => g.groupId === groupId);

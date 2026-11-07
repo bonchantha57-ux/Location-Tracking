@@ -147,53 +147,38 @@ export default function MapView({ selectedUserId, onSelectUser, lang = 'km' }) {
     if (!mapInstanceRef.current || !markersGroupRef.current) return;
     if (!myLocation?.lat) return;
 
-    const userAvatar = currentUser?.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${currentUser?.uid || 'guest'}`;
-    const userName = currentUser?.displayName || (lang === 'km' ? 'អ្នក (You)' : 'You');
+    const isGuest = !currentUser;
+    const userAvatar = currentUser?.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=guest_tracker`;
+    const userName = currentUser?.displayName || '';
+
+    const labelHtml = isGuest
+      ? `<span>${lang === 'km' ? 'ទីតាំងរបស់អ្នក' : 'Your Location'}</span>`
+      : `<span class="truncate">${userName}</span><span class="text-[8px] text-cyan-200 font-semibold opacity-90 shrink-0">(${lang === 'km' ? 'អ្នក' : 'You'})</span>`;
+
+    const myIcon = L.divIcon({
+      className: 'custom-user-marker',
+      iconSize: [52, 52],
+      iconAnchor: [26, 26],
+      html: `
+        <div class="relative flex items-center justify-center w-13 h-13 cursor-pointer group">
+          <span class="absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-60 animate-ping"></span>
+          <span class="absolute inline-flex h-11 w-11 rounded-full bg-cyan-500/30 border-2 border-cyan-400"></span>
+          <div class="relative w-10 h-10 rounded-full border-2 border-cyan-400 bg-slate-900 overflow-hidden shadow-lg shadow-cyan-500/50 flex items-center justify-center">
+            <img src="${userAvatar}" alt="${userName || 'User'}" class="w-full h-full object-cover" />
+          </div>
+          <div class="absolute -bottom-3 bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-500 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-lg border border-cyan-200/50 whitespace-nowrap flex items-center gap-1 max-w-[140px] truncate">
+            <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0"></span>
+            ${labelHtml}
+          </div>
+        </div>
+      `
+    });
 
     if (!myMarkerRef.current) {
-      const myIcon = L.divIcon({
-        className: 'custom-user-marker',
-        iconSize: [52, 52],
-        iconAnchor: [26, 26],
-        html: `
-          <div class="relative flex items-center justify-center w-13 h-13 cursor-pointer group">
-            <span class="absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-60 animate-ping"></span>
-            <span class="absolute inline-flex h-11 w-11 rounded-full bg-cyan-500/30 border-2 border-cyan-400"></span>
-            <div class="relative w-10 h-10 rounded-full border-2 border-cyan-400 bg-slate-900 overflow-hidden shadow-lg shadow-cyan-500/50 flex items-center justify-center">
-              <img src="${userAvatar}" alt="${userName}" class="w-full h-full object-cover" />
-            </div>
-            <div class="absolute -bottom-3 bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-lg border border-cyan-200/50 whitespace-nowrap flex items-center gap-1 max-w-[140px] truncate">
-              <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0"></span>
-              <span class="truncate">${userName}</span>
-              <span class="text-[8px] text-cyan-200 font-semibold opacity-90 shrink-0">(${lang === 'km' ? 'អ្នក' : 'You'})</span>
-            </div>
-          </div>
-        `
-      });
-
       const marker = L.marker([myLocation.lat, myLocation.lng], { icon: myIcon, zIndexOffset: 1000 });
       markersGroupRef.current.addLayer(marker);
       myMarkerRef.current = marker;
     } else {
-      const myIcon = L.divIcon({
-        className: 'custom-user-marker',
-        iconSize: [52, 52],
-        iconAnchor: [26, 26],
-        html: `
-          <div class="relative flex items-center justify-center w-13 h-13 cursor-pointer group">
-            <span class="absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-60 animate-ping"></span>
-            <span class="absolute inline-flex h-11 w-11 rounded-full bg-cyan-500/30 border-2 border-cyan-400"></span>
-            <div class="relative w-10 h-10 rounded-full border-2 border-cyan-400 bg-slate-900 overflow-hidden shadow-lg shadow-cyan-500/50 flex items-center justify-center">
-              <img src="${userAvatar}" alt="${userName}" class="w-full h-full object-cover" />
-            </div>
-            <div class="absolute -bottom-3 bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-lg border border-cyan-200/50 whitespace-nowrap flex items-center gap-1 max-w-[140px] truncate">
-              <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0"></span>
-              <span class="truncate">${userName}</span>
-              <span class="text-[8px] text-cyan-200 font-semibold opacity-90 shrink-0">(${lang === 'km' ? 'អ្នក' : 'You'})</span>
-            </div>
-          </div>
-        `
-      });
       myMarkerRef.current.setLatLng([myLocation.lat, myLocation.lng]);
       myMarkerRef.current.setIcon(myIcon);
     }

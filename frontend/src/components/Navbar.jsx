@@ -29,17 +29,26 @@ export default function Navbar({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
+  const handleLogout = () => {
+    setMobileMenuOpen(false);
+    setIsProfileOpen(false);
+    if (isAdminView && onToggleAdmin) {
+      onToggleAdmin();
+    }
+    logout();
+  };
+
   return (
     <>
       <header className="h-16 w-full glass-panel border-b border-slate-700/60 flex items-center justify-between px-3 sm:px-6 z-30 shrink-0 relative">
         {/* Brand & Logo */}
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-cyan-500 via-blue-600 to-indigo-600 shadow-md shadow-cyan-500/20 border border-cyan-400/40 shrink-0">
-            <Navigation className="w-4 h-4 sm:w-5 sm:h-5 text-white transform -rotate-45" />
-            <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-400"></span>
-            </span>
+          <div className="relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 shrink-0 cursor-pointer hover:scale-105 transition">
+            <img 
+              src="/logo.svg" 
+              alt="Map Tracking Logo" 
+              className="w-full h-full object-contain drop-shadow-[0_0_12px_rgba(6,182,212,0.4)]"
+            />
           </div>
           <div className="truncate">
             <div className="flex items-center gap-1.5">
@@ -125,7 +134,7 @@ export default function Navbar({
               </div>
 
               <button
-                onClick={logout}
+                onClick={handleLogout}
                 title={t.logout}
                 className="hidden md:flex p-2 rounded-xl bg-slate-800/80 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-slate-700 transition cursor-pointer"
               >
@@ -231,10 +240,7 @@ export default function Navbar({
 
             <div className="pt-2 border-t border-slate-800 flex justify-end">
               <button
-                onClick={() => {
-                  logout();
-                  setMobileMenuOpen(false);
-                }}
+                onClick={handleLogout}
                 className="flex items-center gap-1.5 text-xs text-rose-400 font-bold cursor-pointer"
               >
                 <LogOut className="w-4 h-4" />

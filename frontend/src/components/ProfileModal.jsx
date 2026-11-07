@@ -224,3 +224,4 @@ export default function ProfileModal({ isOpen, onClose, lang = 'km' }) {
     </div>
   );
 }
+

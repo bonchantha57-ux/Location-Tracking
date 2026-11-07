@@ -168,10 +168,16 @@ export function AuthProvider({ children }) {
 
   // Logout - strictly only when explicitly invoked by user!
   const logout = () => {
-    localStorage.removeItem('MAP_TRACKING_JWT');
-    localStorage.removeItem('MAP_TRACKING_USER');
+    try {
+      localStorage.removeItem('MAP_TRACKING_JWT');
+      localStorage.removeItem('MAP_TRACKING_USER');
+      localStorage.removeItem('MAP_TRACKING_CURRENT_GROUP');
+      localStorage.removeItem('MAP_TRACKING_USER_GROUPS');
+    } catch (e) {}
+
     signOut(auth).catch(() => {});
     setCurrentUser(null);
+    window.dispatchEvent(new CustomEvent('map_tracking_user_logout'));
   };
 
   // Update user profile (Display Name and Avatar)
