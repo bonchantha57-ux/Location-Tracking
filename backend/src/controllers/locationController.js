@@ -122,18 +122,19 @@ export async function createGroupHandler(req, res) {
     }
 
     const isDuo = type === 'duo' || maxMembers === 2;
-    const prefix = isDuo ? 'DUO' : 'GP';
-    const randomCode = Math.floor(1000 + Math.random() * 9000);
-    const groupId = customId ? customId.toUpperCase().replace(/\s+/g, '') : `${prefix}-${randomCode}`;
+    // If no customId or auto requested, pass 'AUTO' so db.createGroup generates collision-free ID
+    const requestedId = customId ? customId.toUpperCase().replace(/\s+/g, '') : 'AUTO';
 
-    const existing = await db.getGroup(groupId);
-    if (existing) {
-      return res.status(400).json({ error: 'Group / Duo ID already exists, please choose another or auto-generate' });
+    if (requestedId !== 'AUTO') {
+      const existing = await db.getGroup(requestedId);
+      if (existing) {
+        return res.status(400).json({ error: 'Group ID already exists, please choose another or leave empty for auto-generated ID' });
+      }
     }
 
     const group = await db.createGroup(
-      groupId, 
-      name || (isDuo ? `Duo Tracking (${groupId})` : `Group ${groupId}`), 
+      requestedId, 
+      name || (isDuo ? `Duo Tracking` : `Group`), 
       user,
       {
         type: isDuo ? 'duo' : 'group',
@@ -144,6 +145,42 @@ export async function createGroupHandler(req, res) {
   } catch (err) {
     console.error("Create group error:", err);
     return res.status(500).json({ error: err.message || 'Failed to create group' });
+  }
+}
+
+export async function getMyGroupsHandler(req, res) {
+  try {
+    const uid = req.user?.uid;
+    if (!uid) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    const groups = await db.getUserGroups(uid);
+    return res.json({ success: true, groups });
+  } catch (err) {
+    console.error("Get my groups error:", err);
+    return res.status(500).json({ error: 'Failed to fetch user groups' });
+  }
+}
+
+export async function removeGroupMemberHandler(req, res) {
+  try {
+    const { groupId } = req.params;
+    const { memberUid } = req.body;
+    const requesterUid = req.user?.uid;
+    const requesterRole = req.user?.role;
+
+    if (!requesterUid) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    if (!memberUid) {
+      return res.status(400).json({ error: 'memberUid is required' });
+    }
+
+    await db.removeGroupMember(groupId, memberUid, requesterUid, requesterRole);
+    return res.json({ success: true, message: 'Member removed successfully' });
+  } catch (err) {
+    console.error("Remove group member error:", err);
+    return res.status(err.status || 400).json({ error: err.message || 'Failed to remove member' });
   }
 }
 

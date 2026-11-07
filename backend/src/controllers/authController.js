@@ -6,7 +6,7 @@ function generateToken(user) {
   return jwt.sign(
     { uid: user.uid, email: user.email, role: user.role },
     process.env.JWT_SECRET || 'fallback_secret',
-    { expiresIn: '30d' }
+    { expiresIn: '365d' }
   );
 }
 

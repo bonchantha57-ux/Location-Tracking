@@ -70,6 +70,19 @@ export function setupLocationSockets(io) {
       }
     });
 
+    // Group owner or admin kicks a member
+    socket.on('remove_group_member', async ({ groupId, memberUid, requesterUid, requesterRole }) => {
+      if (groupId && memberUid) {
+        const cleanId = groupId.toUpperCase().trim();
+        try {
+          await db.removeGroupMember(cleanId, memberUid, requesterUid, requesterRole);
+          io.to(`group_${cleanId}`).emit('group_member_removed', { groupId: cleanId, memberUid });
+        } catch (e) {
+          console.warn("Socket remove_group_member error:", e.message);
+        }
+      }
+    });
+
     // Join Admin broadcast channel
     socket.on('join_admin_feed', () => {
       socket.join('admin_channel');

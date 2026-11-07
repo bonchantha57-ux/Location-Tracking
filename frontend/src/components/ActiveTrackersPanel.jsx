@@ -1,21 +1,60 @@
 import React, { useState } from 'react';
-import { Users, ChevronRight, ChevronLeft, Navigation, X, Route } from 'lucide-react';
+import { 
+  Users, 
+  ChevronRight, 
+  ChevronLeft, 
+  Navigation, 
+  MapPin, 
+  X,
+  Route,
+  UserX,
+  Layers,
+  ChevronDown
+} from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import { useTracking, calculateTrailDistanceKm } from '../context/TrackingContext';
 import { formatDistance, formatSpeed } from '../utils/geoUtils';
 
-export default function ActiveTrackersPanel({ selectedUserId, onSelectUser, onOpenShare, lang = 'km', t }) {
+export default function ActiveTrackersPanel({ 
+  selectedUserId, 
+  onSelectUser, 
+  onOpenShare,
+  lang = 'km',
+  t 
+}) {
+  const { currentUser } = useAuth();
   const { 
     otherActiveUsers, 
     currentGroup, 
+    userGroups,
+    switchActiveGroup,
+    removeMember,
     groupTrails, 
     focusedTrailUid, 
     setFocusedTrailUid 
   } = useTracking();
   const [isOpen, setIsOpen] = useState(false);
+  const [groupDropdownOpen, setGroupDropdownOpen] = useState(false);
+
+  const isOwner = currentGroup?.creatorUid === currentUser?.uid;
+
+  const handleKickMember = async (e, friend) => {
+    e.stopPropagation();
+    const confirmMsg = lang === 'km'
+      ? `តើអ្នកពិតជាចង់ដក "${friend.displayName}" ចេញពីបន្ទប់នេះមែនទេ?`
+      : `Remove "${friend.displayName}" from this group?`;
+    if (window.confirm(confirmMsg)) {
+      try {
+        await removeMember(currentGroup.groupId, friend.uid);
+      } catch (err) {
+        alert(err.message || 'Error removing member');
+      }
+    }
+  };
 
   return (
     <>
-      {/* Mobile Floating Pill Button (Top Right, aligned symmetrically with Layer button) */}
+      {/* Mobile Floating Trigger Button */}
       <div className="md:hidden absolute top-3 right-3 z-20">
         <button
           onClick={() => setIsOpen(!isOpen)}
@@ -57,6 +96,56 @@ export default function ActiveTrackersPanel({ selectedUserId, onSelectUser, onOp
                 {otherActiveUsers.length} {lang === 'km' ? 'នាក់' : 'live'}
               </span>
             </div>
+
+            {/* Group Switcher / Active Group Banner */}
+            {userGroups.length > 0 && (
+              <div className="mt-2.5 p-2 rounded-xl bg-slate-950/80 border border-slate-800 relative">
+                <div className="flex items-center justify-between">
+                  <div className="min-w-0 flex-1 pr-1">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
+                      {lang === 'km' ? 'គ្រុបកំពុងមើលលើ Map:' : 'Active Group:'}
+                    </span>
+                    <span className="text-xs font-black text-cyan-300 truncate block">
+                      {currentGroup?.name || 'គ្មានគ្រុប'}
+                    </span>
+                  </div>
+
+                  {userGroups.length > 1 && (
+                    <button
+                      onClick={() => setGroupDropdownOpen(!groupDropdownOpen)}
+                      className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-750 text-cyan-400 border border-cyan-500/30 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                    >
+                      <Layers className="w-3 h-3" />
+                      <span>{lang === 'km' ? 'ប្តូរ' : 'Switch'}</span>
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Dropdown to switch groups */}
+                {groupDropdownOpen && userGroups.length > 1 && (
+                  <div className="mt-2 pt-2 border-t border-slate-800 space-y-1.5">
+                    {userGroups.map((g) => (
+                      <button
+                        key={g.groupId}
+                        onClick={() => {
+                          switchActiveGroup(g.groupId);
+                          setGroupDropdownOpen(false);
+                        }}
+                        className={`w-full text-left p-1.5 rounded-lg text-[11px] font-bold flex items-center justify-between transition cursor-pointer ${
+                          g.groupId === currentGroup?.groupId
+                            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                            : 'bg-slate-900 hover:bg-slate-800 text-slate-300'
+                        }`}
+                      >
+                        <span className="truncate max-w-[140px]">{g.name}</span>
+                        <span className="text-[9px] font-mono text-slate-400">{g.groupId}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* List */}
             <div className="mt-3 space-y-2 max-h-72 overflow-y-auto pr-1">
@@ -127,25 +216,41 @@ export default function ActiveTrackersPanel({ selectedUserId, onSelectUser, onOp
                         }`}>
                           {isSelected ? (lang === 'km' ? 'កំពុងមើល' : 'Tracking') : (lang === 'km' ? 'មើល' : 'View')}
                         </span>
-                        {/* Focus Trail Button */}
-                        {currentGroup && friendTrail.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setFocusedTrailUid(isTrailFocused ? null : friend.uid);
-                            }}
-                            title={lang === 'km' ? 'មើលដានផ្លូវ' : 'Focus Trail'}
-                            className={`p-1 rounded-lg text-[9px] font-bold transition flex items-center gap-0.5 cursor-pointer ${
-                              isTrailFocused
-                                ? 'bg-pink-500 text-white shadow-sm'
-                                : 'bg-slate-700/60 hover:bg-slate-700 text-pink-300 border border-pink-500/30'
-                            }`}
-                          >
-                            <Route className="w-2.5 h-2.5" />
-                            <span>{isTrailFocused ? (lang === 'km' ? 'បិទដាន' : 'Unfocus') : (lang === 'km' ? 'ដាន' : 'Trail')}</span>
-                          </button>
-                        )}
+                        
+                        <div className="flex items-center gap-1">
+                          {/* Focus Trail Button */}
+                          {currentGroup && friendTrail.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setFocusedTrailUid(isTrailFocused ? null : friend.uid);
+                              }}
+                              title={lang === 'km' ? 'មើលដានផ្លូវ' : 'Focus Trail'}
+                              className={`p-1 rounded-lg text-[9px] font-bold transition flex items-center gap-0.5 cursor-pointer ${
+                                isTrailFocused
+                                  ? 'bg-pink-500 text-white shadow-sm'
+                                  : 'bg-slate-700/60 hover:bg-slate-700 text-pink-300 border border-pink-500/30'
+                              }`}
+                            >
+                              <Route className="w-2.5 h-2.5" />
+                              <span>{isTrailFocused ? (lang === 'km' ? 'បិទដាន' : 'Unfocus') : (lang === 'km' ? 'ដាន' : 'Trail')}</span>
+                            </button>
+                          )}
+
+                          {/* Owner Kick/Remove Member Button */}
+                          {isOwner && friend.uid !== currentUser?.uid && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleKickMember(e, friend)}
+                              title={lang === 'km' ? 'ដកសមាជិកនេះចេញពីបន្ទប់' : 'Kick Member'}
+                              className="p-1 rounded-lg text-[9px] font-bold text-rose-300 bg-rose-500/15 hover:bg-rose-500/30 border border-rose-500/30 transition flex items-center gap-0.5 cursor-pointer"
+                            >
+                              <UserX className="w-2.5 h-2.5" />
+                              <span>{lang === 'km' ? 'ដក' : 'Kick'}</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -175,6 +280,31 @@ export default function ActiveTrackersPanel({ selectedUserId, onSelectUser, onOp
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Mobile Group Switcher */}
+            {userGroups.length > 1 && (
+              <div className="mt-3 p-2 rounded-xl bg-slate-950 border border-slate-800">
+                <span className="text-[10px] text-slate-400 font-bold block mb-1">
+                  {lang === 'km' ? 'ប្តូរគ្រុបមើលលើ Map:' : 'Switch Active Group:'}
+                </span>
+                <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                  {userGroups.map((g) => (
+                    <button
+                      key={g.groupId}
+                      onClick={() => switchActiveGroup(g.groupId)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition flex items-center gap-1.5 ${
+                        g.groupId === currentGroup?.groupId
+                          ? 'bg-cyan-500 text-slate-950 shadow-md'
+                          : 'bg-slate-800 text-slate-300'
+                      }`}
+                    >
+                      <span>{g.name}</span>
+                      <span className="text-[9px] opacity-75 font-mono">({g.groupId})</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="mt-3 space-y-2">
               {otherActiveUsers.length === 0 ? (
@@ -226,9 +356,22 @@ export default function ActiveTrackersPanel({ selectedUserId, onSelectUser, onOp
                       </div>
 
                       <div className="flex flex-col items-end gap-1.5 shrink-0">
-                        <span className="text-xs font-bold px-3 py-1 rounded-xl bg-cyan-600 text-white">
-                          {lang === 'km' ? 'មើល' : 'View'}
-                        </span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs font-bold px-3 py-1 rounded-xl bg-cyan-600 text-white">
+                            {lang === 'km' ? 'មើល' : 'View'}
+                          </span>
+
+                          {isOwner && friend.uid !== currentUser?.uid && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleKickMember(e, friend)}
+                              className="p-1 px-2 rounded-lg text-xs font-bold text-rose-300 bg-rose-500/20 border border-rose-500/40"
+                            >
+                              <UserX className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+
                         {currentGroup && friendTrail.length > 0 && (
                           <button
                             type="button"

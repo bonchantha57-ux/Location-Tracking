@@ -287,8 +287,24 @@ export const db = {
 
   // Groups Management in Firestore & Realtime DB
   async createGroup(groupId, name, creator, options = {}) {
-    const cleanId = String(groupId || ('GP' + Math.floor(1000 + Math.random() * 9000))).toUpperCase().trim();
-    const isDuo = options.type === 'duo' || options.maxMembers === 2 || cleanId.startsWith('DUO-');
+    const isDuo = options.type === 'duo' || options.maxMembers === 2 || (groupId && String(groupId).toUpperCase().startsWith('DUO-'));
+    const data = readLocalDb();
+    if (!data.groups) data.groups = {};
+
+    let cleanId = groupId ? String(groupId).toUpperCase().replace(/\s+/g, '') : null;
+
+    // Guaranteed Collision-Free Auto-ID Generation
+    if (!cleanId || cleanId === 'AUTO') {
+      const prefix = isDuo ? 'DUO-' : 'GP-';
+      const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+      do {
+        let code = '';
+        for (let i = 0; i < 6; i++) {
+          code += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        cleanId = prefix + code;
+      } while (data.groups[cleanId]);
+    }
     
     // STRICT VALIDATION: ensure creator.uid is never undefined!
     const creatorUid = String(creator?.uid || creator?.id || ('usr_' + Date.now().toString(36)));
@@ -322,8 +338,6 @@ export const db = {
     const sanitizedGroup = sanitizeForFirestore(groupData);
 
     // Save in Local DB
-    const data = readLocalDb();
-    if (!data.groups) data.groups = {};
     data.groups[cleanId] = sanitizedGroup;
     writeLocalDb(data);
 
@@ -459,6 +473,99 @@ export const db = {
       return true;
     }
     return false;
+  },
+
+  // Owner or Admin removes a member from a group
+  async removeGroupMember(groupId, memberUid, requesterUid, requesterRole) {
+    if (!groupId || !memberUid) return false;
+    const cleanId = String(groupId).toUpperCase().trim();
+    const cleanMemberUid = String(memberUid);
+    const cleanRequesterUid = String(requesterUid);
+
+    const group = await this.getGroup(cleanId);
+    if (!group) {
+      const err = new Error('Group not found');
+      err.status = 404;
+      throw err;
+    }
+
+    const isOwner = group.creatorUid === cleanRequesterUid;
+    const isAdmin = requesterRole === 'admin';
+
+    if (!isOwner && !isAdmin) {
+      const err = new Error('Only the group creator (owner) or Admin can remove members');
+      err.status = 403;
+      throw err;
+    }
+
+    if (cleanMemberUid === group.creatorUid) {
+      const err = new Error('Cannot remove the creator/owner of the group');
+      err.status = 400;
+      throw err;
+    }
+
+    const data = readLocalDb();
+    if (data.groups && data.groups[cleanId]) {
+      if (data.groups[cleanId].members) {
+        delete data.groups[cleanId].members[cleanMemberUid];
+      }
+      if (data.groups[cleanId].trails) {
+        delete data.groups[cleanId].trails[cleanMemberUid];
+      }
+      writeLocalDb(data);
+
+      if (isConnected && firestoreDb) {
+        const sanitizedMembers = sanitizeForFirestore(data.groups[cleanId].members || {});
+        syncCloud(setDoc(doc(firestoreDb, 'groups', cleanId), {
+          members: sanitizedMembers
+        }, { merge: true }));
+      }
+
+      if (isConnected && realtimeDb) {
+        syncCloud(set(ref(realtimeDb, `groups/${cleanId}/members/${cleanMemberUid}`), null));
+        syncCloud(set(ref(realtimeDb, `groups/${cleanId}/trails/${cleanMemberUid}`), null));
+      }
+
+      return true;
+    }
+    return false;
+  },
+
+  // Get all groups where a specific user is a member
+  async getUserGroups(uid) {
+    if (!uid) return [];
+    const cleanUid = String(uid);
+    const allGroups = await this.getAllGroups();
+    return allGroups.filter(g => g.members && g.members[cleanUid]);
+  },
+
+  // Get all groups across the platform (for Admin God-view)
+  async getAllGroups() {
+    const data = readLocalDb();
+    const localGroupsMap = { ...(data.groups || {}) };
+
+    if (isConnected && firestoreDb) {
+      try {
+        const snap = await Promise.race([
+          getDocs(collection(firestoreDb, 'groups')),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500))
+        ]);
+        if (snap && !snap.empty) {
+          snap.forEach(docSnap => {
+            const g = docSnap.data();
+            if (g && g.groupId) {
+              localGroupsMap[g.groupId] = { ...(localGroupsMap[g.groupId] || {}), ...g };
+            }
+          });
+          data.groups = localGroupsMap;
+          writeLocalDb(data);
+        }
+      } catch (err) {
+        console.warn("Firestore getAllGroups sync note:", err.message);
+      }
+    }
+
+    return Object.values(localGroupsMap);
   },
 
   // Record a movement track point (bread crumb / history trail) for a member in a group

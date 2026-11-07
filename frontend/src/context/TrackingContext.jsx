@@ -44,6 +44,15 @@ export function TrackingProvider({ children }) {
       return null;
     }
   });
+  // Multi-group state: Array of all groups user has joined
+  const [userGroups, setUserGroups] = useState(() => {
+    try {
+      const saved = localStorage.getItem('MAP_TRACKING_USER_GROUPS');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
   const [mapStyle, setMapStyle] = useState('satellite');
 
   // Movement Trails / Breadcrumbs State
@@ -209,10 +218,45 @@ export function TrackingProvider({ children }) {
       }
     }
 
+    // Member kicked / removed from group
+    function onGroupMemberRemoved(data) {
+      if (!data?.groupId) return;
+      if (data.memberUid === currentUser?.uid) {
+        setUserGroups(prev => {
+          const remaining = prev.filter(g => g.groupId !== data.groupId);
+          try {
+            localStorage.setItem('MAP_TRACKING_USER_GROUPS', JSON.stringify(remaining));
+          } catch (e) {}
+          return remaining;
+        });
+        setCurrentGroup(prev => {
+          if (prev?.groupId === data.groupId) {
+            try {
+              localStorage.removeItem('MAP_TRACKING_CURRENT_GROUP');
+            } catch (e) {}
+            return null;
+          }
+          return prev;
+        });
+        setGroupTrails({});
+        alert(`អ្នកត្រូវបានដកចេញពីបន្ទប់ ${data.groupId} (You were removed from ${data.groupId})`);
+      } else {
+        // Someone else was removed: update member list
+        api.getGroup(data.groupId).then(fresh => {
+          if (fresh) {
+            setCurrentGroup(prev => prev?.groupId === data.groupId ? fresh : prev);
+            setUserGroups(prev => prev.map(g => g.groupId === data.groupId ? fresh : g));
+          }
+        }).catch(() => {});
+      }
+      refreshUsers();
+    }
+
     socket.on('user_location_update', onLocationUpdate);
     socket.on('group_location_update', onLocationUpdate);
     socket.on('user_sharing_toggled', onSharingToggled);
     socket.on('group_member_joined', onMemberJoinedGroup);
+    socket.on('group_member_removed', onGroupMemberRemoved);
     socket.on('group_trails_sync', onGroupTrailsSync);
     socket.on('group_trail_point', onGroupTrailPoint);
 
@@ -221,6 +265,7 @@ export function TrackingProvider({ children }) {
       socket.off('group_location_update', onLocationUpdate);
       socket.off('user_sharing_toggled', onSharingToggled);
       socket.off('group_member_joined', onMemberJoinedGroup);
+      socket.off('group_member_removed', onGroupMemberRemoved);
       socket.off('group_trails_sync', onGroupTrailsSync);
       socket.off('group_trail_point', onGroupTrailPoint);
     };
@@ -333,34 +378,157 @@ export function TrackingProvider({ children }) {
     }
   };
 
-  // Group Methods
-  const createGroup = async (name, customId, options = {}) => {
-    if (!currentUser) throw new Error("Please login to create a group");
-    const group = await api.createGroup(name, customId, options);
-    setCurrentGroup(group);
-    localStorage.setItem('MAP_TRACKING_CURRENT_GROUP', JSON.stringify(group));
-    socket.emit('join_group', { groupId: group.groupId, user: currentUser });
-    return group;
+  // Load all groups user belongs to from backend
+  const refreshUserGroups = async () => {
+    if (!currentUser?.uid) {
+      setUserGroups([]);
+      return;
+    }
+    try {
+      const groups = await api.getMyGroups();
+      if (Array.isArray(groups)) {
+        setUserGroups(groups);
+        try {
+          localStorage.setItem('MAP_TRACKING_USER_GROUPS', JSON.stringify(groups));
+        } catch (e) {}
+
+        // Ensure currentGroup is synchronized with fresh server data
+        if (groups.length > 0) {
+          setCurrentGroup(prev => {
+            if (!prev) {
+              try {
+                localStorage.setItem('MAP_TRACKING_CURRENT_GROUP', JSON.stringify(groups[0]));
+              } catch (e) {}
+              return groups[0];
+            }
+            const fresh = groups.find(g => g.groupId === prev.groupId);
+            if (fresh) {
+              try {
+                localStorage.setItem('MAP_TRACKING_CURRENT_GROUP', JSON.stringify(fresh));
+              } catch (e) {}
+              return fresh;
+            }
+            return prev;
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("Could not fetch my groups:", e);
+    }
   };
 
-  const joinGroup = async (groupId) => {
-    if (!currentUser) throw new Error("Please login to join a group");
-    const group = await api.joinGroup(groupId);
+  useEffect(() => {
+    refreshUserGroups();
+  }, [currentUser?.uid]);
+
+  // Switch Active Group to view on Map
+  const switchActiveGroup = (groupId) => {
+    const target = userGroups.find(g => g.groupId === groupId);
+    if (target) {
+      setCurrentGroup(target);
+      try {
+        localStorage.setItem('MAP_TRACKING_CURRENT_GROUP', JSON.stringify(target));
+      } catch (e) {}
+      socket.emit('join_group', { groupId: target.groupId, user: currentUser });
+      refreshUsers();
+    }
+  };
+
+  // Group Methods (Multi-Group support)
+  const createGroup = async (name, customId, options = {}) => {
+    if (!currentUser) throw new Error("Please login to create a group");
+    const res = await api.createGroup(name, customId, options);
+    const group = res.group || res;
     setCurrentGroup(group);
-    localStorage.setItem('MAP_TRACKING_CURRENT_GROUP', JSON.stringify(group));
+    setUserGroups(prev => {
+      const filtered = prev.filter(g => g.groupId !== group.groupId);
+      const updated = [group, ...filtered];
+      try {
+        localStorage.setItem('MAP_TRACKING_USER_GROUPS', JSON.stringify(updated));
+        localStorage.setItem('MAP_TRACKING_CURRENT_GROUP', JSON.stringify(group));
+      } catch (e) {}
+      return updated;
+    });
     socket.emit('join_group', { groupId: group.groupId, user: currentUser });
     refreshUsers();
     return group;
   };
 
-  const leaveGroup = async () => {
-    if (currentGroup && currentUser) {
-      await api.leaveGroup(currentGroup.groupId);
-      socket.emit('leave_group', { groupId: currentGroup.groupId, uid: currentUser.uid });
-      setCurrentGroup(null);
+  const joinGroup = async (groupId) => {
+    if (!currentUser) throw new Error("Please login to join a group");
+    const res = await api.joinGroup(groupId);
+    const group = res.group || res;
+    setCurrentGroup(group);
+    setUserGroups(prev => {
+      const filtered = prev.filter(g => g.groupId !== group.groupId);
+      const updated = [group, ...filtered];
+      try {
+        localStorage.setItem('MAP_TRACKING_USER_GROUPS', JSON.stringify(updated));
+        localStorage.setItem('MAP_TRACKING_CURRENT_GROUP', JSON.stringify(group));
+      } catch (e) {}
+      return updated;
+    });
+    socket.emit('join_group', { groupId: group.groupId, user: currentUser });
+    refreshUsers();
+    return group;
+  };
+
+  const leaveGroup = async (groupIdToLeave) => {
+    const targetId = groupIdToLeave || currentGroup?.groupId;
+    if (!targetId || !currentUser) return;
+
+    try {
+      await api.leaveGroup(targetId);
+      socket.emit('leave_group', { groupId: targetId, uid: currentUser.uid });
+
+      setUserGroups(prev => {
+        const remaining = prev.filter(g => g.groupId !== targetId);
+        try {
+          localStorage.setItem('MAP_TRACKING_USER_GROUPS', JSON.stringify(remaining));
+        } catch (e) {}
+
+        if (currentGroup?.groupId === targetId) {
+          const nextActive = remaining.length > 0 ? remaining[0] : null;
+          setCurrentGroup(nextActive);
+          try {
+            if (nextActive) {
+              localStorage.setItem('MAP_TRACKING_CURRENT_GROUP', JSON.stringify(nextActive));
+            } else {
+              localStorage.removeItem('MAP_TRACKING_CURRENT_GROUP');
+            }
+          } catch (e) {}
+        }
+        return remaining;
+      });
+
       setGroupTrails({});
       setFocusedTrailUid(null);
-      localStorage.removeItem('MAP_TRACKING_CURRENT_GROUP');
+      refreshUsers();
+    } catch (e) {
+      console.warn("Error leaving group:", e);
+    }
+  };
+
+  // Group Owner / Admin kicks a member from a group
+  const removeMember = async (groupId, memberUid) => {
+    if (!groupId || !memberUid) return;
+    try {
+      await api.removeGroupMember(groupId, memberUid);
+      socket.emit('remove_group_member', {
+        groupId,
+        memberUid,
+        requesterUid: currentUser?.uid,
+        requesterRole: currentUser?.role
+      });
+      // Refresh group details
+      const fresh = await api.getGroup(groupId);
+      if (fresh) {
+        setCurrentGroup(prev => prev?.groupId === groupId ? fresh : prev);
+        setUserGroups(prev => prev.map(g => g.groupId === groupId ? fresh : g));
+      }
+      refreshUsers();
+    } catch (err) {
+      throw err;
     }
   };
 
@@ -405,6 +573,10 @@ export function TrackingProvider({ children }) {
     refreshUsers,
     otherActiveUsers,
     currentGroup,
+    userGroups,
+    switchActiveGroup,
+    removeMember,
+    refreshUserGroups,
     createGroup,
     joinGroup,
     leaveGroup,

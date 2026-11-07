@@ -4,11 +4,15 @@ import { getOnlineUids } from '../sockets/locationSocket.js';
 
 export async function getAdminStats(req, res) {
   try {
-    const users = await db.getAllUsers();
+    const [users, groups] = await Promise.all([
+      db.getAllUsers(),
+      db.getAllGroups()
+    ]);
     const onlineUids = getOnlineUids();
     const now = Date.now();
 
     const totalUsers = users.length;
+    const totalGroups = groups.length;
     // User is online if actively connected via WebSocket OR seen in last 5 minutes
     const onlineUsers = users.filter(u => 
       onlineUids.has(String(u.uid)) || (u.lastSeen && (now - u.lastSeen) < 5 * 60 * 1000)
@@ -22,6 +26,7 @@ export async function getAdminStats(req, res) {
       stats: {
         totalUsers,
         onlineUsers,
+        totalGroups,
         activeSharing,
         hiddenUsers,
         adminCount,
@@ -32,6 +37,29 @@ export async function getAdminStats(req, res) {
   } catch (err) {
     console.error("Admin stats error:", err);
     return res.status(500).json({ error: 'Server error fetching admin stats' });
+  }
+}
+
+// Get all groups across the platform for Admin monitoring
+export async function getAdminGroupsList(req, res) {
+  try {
+    const groups = await db.getAllGroups();
+    const safeGroups = groups.map(g => ({
+      groupId: g.groupId,
+      name: g.name,
+      type: g.type,
+      creatorUid: g.creatorUid,
+      creatorName: g.creatorName,
+      createdAt: g.createdAt,
+      maxMembers: g.maxMembers,
+      membersCount: g.members ? Object.keys(g.members).length : 0,
+      members: g.members || {}
+    }));
+    safeGroups.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    return res.json({ success: true, groups: safeGroups });
+  } catch (err) {
+    console.error("Admin groups list error:", err);
+    return res.status(500).json({ error: 'Server error fetching groups list' });
   }
 }
 

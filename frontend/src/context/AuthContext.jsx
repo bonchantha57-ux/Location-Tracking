@@ -23,7 +23,15 @@ function enrichUserWithAdmin(user) {
 }
 
 export function AuthProvider({ children }) {
-  const [currentUser, setCurrentUser] = useState(null);
+  // Load cached user session immediately to eliminate initial flicker and prevent logout on refresh
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('MAP_TRACKING_USER');
+      return saved ? enrichUserWithAdmin(JSON.parse(saved)) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
 
@@ -35,13 +43,19 @@ export function AuthProvider({ children }) {
         try {
           const res = await api.getMe();
           if (res?.user) {
-            setCurrentUser(enrichUserWithAdmin(res.user));
-          } else {
-            localStorage.removeItem('MAP_TRACKING_JWT');
+            const enriched = enrichUserWithAdmin(res.user);
+            setCurrentUser(enriched);
+            localStorage.setItem('MAP_TRACKING_USER', JSON.stringify(enriched));
           }
         } catch (err) {
-          console.error("Auth verify error:", err);
-          localStorage.removeItem('MAP_TRACKING_JWT');
+          console.warn("Auth verify background note (preserving session):", err.message);
+          // ONLY clear token if backend explicitly returns 401 / 403 (invalid token)
+          // NEVER log out due to server cold start, sleep or temporary network glitch!
+          if (err.status === 401 || err.status === 403) {
+            localStorage.removeItem('MAP_TRACKING_JWT');
+            localStorage.removeItem('MAP_TRACKING_USER');
+            setCurrentUser(null);
+          }
         }
       }
       setLoading(false);
@@ -49,11 +63,24 @@ export function AuthProvider({ children }) {
     initAuth();
   }, []);
 
+  // Helper to persist user and token
+  const persistSession = (user, token) => {
+    if (token) {
+      localStorage.setItem('MAP_TRACKING_JWT', token);
+    }
+    if (user) {
+      const enriched = enrichUserWithAdmin(user);
+      localStorage.setItem('MAP_TRACKING_USER', JSON.stringify(enriched));
+      setCurrentUser(enriched);
+      return enriched;
+    }
+    return user;
+  };
+
   // Login with Email & Password (Dual-Engine: Firebase Auth + Backend DB fallback)
   const login = async (email, password) => {
     setAuthError(null);
     const cleanEmail = email.toLowerCase().trim();
-    let authenticatedUser = null;
 
     // 1. Try Firebase Authentication first (for accounts created in Firebase Console or Firebase Auth)
     try {
@@ -67,12 +94,7 @@ export function AuthProvider({ children }) {
         googleUid: fbUser.uid
       });
 
-      if (syncData.token) {
-        localStorage.setItem('MAP_TRACKING_JWT', syncData.token);
-      }
-      authenticatedUser = enrichUserWithAdmin(syncData.user);
-      setCurrentUser(authenticatedUser);
-      return authenticatedUser;
+      return persistSession(syncData.user, syncData.token);
     } catch (fbErr) {
       console.warn("Firebase Auth signIn note:", fbErr.code, fbErr.message);
       if (fbErr.code === 'auth/wrong-password' || fbErr.code === 'auth/invalid-credential') {
@@ -83,12 +105,7 @@ export function AuthProvider({ children }) {
     // 2. Direct Backend API Login (with automatic provision for admin accounts)
     try {
       const data = await api.login({ email: cleanEmail, password });
-      if (data.token) {
-        localStorage.setItem('MAP_TRACKING_JWT', data.token);
-      }
-      authenticatedUser = enrichUserWithAdmin(data.user);
-      setCurrentUser(authenticatedUser);
-      return authenticatedUser;
+      return persistSession(data.user, data.token);
     } catch (err) {
       setAuthError(err.message);
       throw err;
@@ -116,12 +133,7 @@ export function AuthProvider({ children }) {
         avatar,
         role: assignedRole
       });
-      if (data.token) {
-        localStorage.setItem('MAP_TRACKING_JWT', data.token);
-      }
-      const enriched = enrichUserWithAdmin(data.user);
-      setCurrentUser(enriched);
-      return enriched;
+      return persistSession(data.user, data.token);
     } catch (err) {
       setAuthError(err.message);
       throw err;
@@ -142,12 +154,7 @@ export function AuthProvider({ children }) {
         googleUid: fbUser.uid
       });
 
-      if (data.token) {
-        localStorage.setItem('MAP_TRACKING_JWT', data.token);
-      }
-      const enriched = enrichUserWithAdmin(data.user);
-      setCurrentUser(enriched);
-      return enriched;
+      return persistSession(data.user, data.token);
     } catch (err) {
       console.error("Google sign-in error:", err);
       if (err.code === 'auth/popup-closed-by-user') {
@@ -158,9 +165,11 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Logout
+  // Logout - strictly only when explicitly invoked by user!
   const logout = () => {
     localStorage.removeItem('MAP_TRACKING_JWT');
+    localStorage.removeItem('MAP_TRACKING_USER');
+    signOut(auth).catch(() => {});
     setCurrentUser(null);
   };
 

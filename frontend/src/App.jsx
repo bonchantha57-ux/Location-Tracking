@@ -22,7 +22,7 @@ function MainApp() {
   const [pendingSessionId, setPendingSessionId] = useState(null);
 
   const { currentUser } = useAuth();
-  const { currentGroup, leaveGroup, joinGroup } = useTracking();
+  const { currentGroup, leaveGroup, joinGroup, userGroups = [], switchActiveGroup } = useTracking();
 
   const isDuo = currentGroup?.type === 'duo' || currentGroup?.groupId?.startsWith('DUO-');
   const membersCount = currentGroup?.members ? Object.keys(currentGroup.members).length : 0;
@@ -133,6 +133,11 @@ function MainApp() {
               }`}>
                 {currentGroup.groupId} ({membersCount}/{currentGroup.maxMembers || (isDuo ? 2 : 50)})
               </span>
+              {userGroups.length > 1 && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40 shrink-0">
+                  +{userGroups.length - 1} {lang === 'km' ? 'ក្រុម' : 'groups'}
+                </span>
+              )}
             </div>
 
             <button

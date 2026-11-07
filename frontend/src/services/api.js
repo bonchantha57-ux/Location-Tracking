@@ -1,4 +1,6 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+const DEFAULT_API = isLocal ? 'http://localhost:5000/api' : 'https://location-tracking-n6br.onrender.com/api';
+const API_BASE_URL = (import.meta.env.VITE_API_URL || DEFAULT_API).replace(/\/+$/, '');
 
 function getAuthHeader() {
   const token = localStorage.getItem('MAP_TRACKING_JWT');
@@ -171,6 +173,33 @@ export const api = {
     return await res.json();
   },
 
+  async getMyGroups() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/location/my-groups`, {
+        headers: { ...getAuthHeader() }
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.groups || [];
+    } catch (e) {
+      return [];
+    }
+  },
+
+  async removeGroupMember(groupId, memberUid) {
+    const res = await fetch(`${API_BASE_URL}/location/group/${groupId}/remove-member`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader()
+      },
+      body: JSON.stringify({ memberUid })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to remove member');
+    return data;
+  },
+
   // Admin API
   async getAdminStats() {
     const res = await fetch(`${API_BASE_URL}/admin/stats`, {
@@ -188,6 +217,15 @@ export const api = {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to fetch admin users');
     return data.users || [];
+  },
+
+  async getAdminGroups() {
+    const res = await fetch(`${API_BASE_URL}/admin/groups`, {
+      headers: { ...getAuthHeader() }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch admin groups');
+    return data.groups || [];
   },
 
   async revokeUserSharing(targetUid, isSharing) {

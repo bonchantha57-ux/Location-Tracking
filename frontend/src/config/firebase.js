@@ -5,6 +5,8 @@ import {
   signInWithPopup, 
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  setPersistence,
+  browserLocalPersistence,
   signOut 
 } from 'firebase/auth';
 
@@ -19,6 +21,9 @@ const firebaseConfig = {
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
 const auth = getAuth(app);
+
+// Keep Firebase Authentication session persistent across tabs and browser restarts!
+setPersistence(auth, browserLocalPersistence).catch(() => {});
 
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({
