@@ -152,7 +152,7 @@ export async function updateAdminUser(req, res) {
     if (password && password.trim().length >= 6) {
       updates.passwordHash = await bcrypt.hash(password.trim(), 10);
     }
-
+// Update user in database
     const updatedUser = await db.setUser(targetUid, updates);
     const { passwordHash, ...safeUser } = updatedUser;
 
