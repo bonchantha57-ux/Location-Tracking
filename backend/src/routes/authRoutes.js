@@ -3,7 +3,7 @@ import { register, login, getMe, googleAuth, updateProfile } from '../controller
 import { authenticateToken } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
-
+// Define authentication routes
 router.post('/register', register);
 router.post('/login', login);
 router.post('/google', googleAuth);
