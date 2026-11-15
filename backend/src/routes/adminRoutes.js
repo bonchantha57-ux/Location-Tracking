@@ -1,3 +1,5 @@
+// backend/src/routes/adminRoutes.js
+
 import express from 'express';
 import { 
   getAdminStats, 
@@ -12,6 +14,7 @@ import { authenticateToken, requireAdmin } from '../middleware/authMiddleware.js
 
 const router = express.Router();
 
+//update authenticateToke adminRoute
 router.use(authenticateToken);
 router.use(requireAdmin);
 
